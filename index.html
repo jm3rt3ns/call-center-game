@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call Center Chaos - Management Simulation</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Main Menu -->
+        <div id="main-menu" class="screen">
+            <h1>📞 Call Center Chaos</h1>
+            <p class="subtitle">A Management Simulation Game</p>
+            
+            <div class="menu-section">
+                <h3>Game Settings</h3>
+                <div class="config-option">
+                    <label for="config-employees">Number of Employees:</label>
+                    <input type="number" id="config-employees" min="3" max="20" value="10">
+                </div>
+                <div class="config-option">
+                    <label for="config-duration">Game Duration (minutes):</label>
+                    <input type="number" id="config-duration" min="5" max="60" value="20">
+                </div>
+                <div class="config-option">
+                    <label for="config-target">Revenue Target (pesos):</label>
+                    <input type="number" id="config-target" min="100" max="2000" value="500">
+                </div>
+            </div>
+            
+            <button id="start-game" class="menu-button">Start Game</button>
+            <button id="how-to-play" class="menu-button secondary">How to Play</button>
+        </div>
+        
+        <!-- How to Play Screen -->
+        <div id="how-to-play-screen" class="screen hidden">
+            <h2>How to Play</h2>
+            <div class="instructions">
+                <h4>Controls:</h4>
+                <ul>
+                    <li><strong>WASD / Arrow Keys</strong> - Move your manager around the office</li>
+                    <li><strong>C Key</strong> - Dump the coffee (disables coffee breaks for 1 minute)</li>
+                    <li><strong>B Key</strong> - Close bathroom for cleaning (disables bathroom for 1 minute)</li>
+                    <li><strong>Space</strong> - Send nearby employee back to desk when colliding</li>
+                </ul>
+                
+                <h4>Objective:</h4>
+                <p>Reach the revenue target before the workday ends without any employee going insane!</p>
+                
+                <h4>Tips:</h4>
+                <ul>
+                    <li>Walking near employees increases their productivity but also their insanity</li>
+                    <li>Blocking breaks increases revenue but watch employee sanity levels</li>
+                    <li>Balance productivity and sanity - if any employee hits 100 insanity, it's game over!</li>
+                </ul>
+            </div>
+            <button id="back-to-menu" class="menu-button">Back to Menu</button>
+        </div>
+        
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen hidden">
+            <div id="game-hud">
+                <div class="hud-item">
+                    <span class="hud-label">Revenue:</span>
+                    <span id="hud-revenue">0</span> pesos
+                </div>
+                <div class="hud-item">
+                    <span class="hud-label">Target:</span>
+                    <span id="hud-target">500</span> pesos
+                </div>
+                <div class="hud-item">
+                    <span class="hud-label">Time:</span>
+                    <span id="hud-time">8:00 AM</span>
+                </div>
+                <div class="hud-item">
+                    <span class="hud-label">Real Time:</span>
+                    <span id="hud-real-time">20:00</span>
+                </div>
+                <div class="hud-item status-indicator">
+                    <span id="coffee-status">☕ Coffee: Available</span>
+                </div>
+                <div class="hud-item status-indicator">
+                    <span id="bathroom-status">🚻 Bathroom: Open</span>
+                </div>
+            </div>
+            
+            <canvas id="game-canvas"></canvas>
+            
+            <div id="employee-panel">
+                <h3>Employee Status</h3>
+                <div id="employee-list"></div>
+            </div>
+        </div>
+        
+        <!-- Win Screen -->
+        <div id="win-screen" class="screen hidden">
+            <h1>🎉 You Win!</h1>
+            <p>Congratulations! You met your revenue target!</p>
+            <div id="win-stats"></div>
+            <button id="win-menu" class="menu-button">Back to Menu</button>
+        </div>
+        
+        <!-- Lose Screen -->
+        <div id="lose-screen" class="screen hidden">
+            <h1>💀 Game Over</h1>
+            <p id="lose-reason"></p>
+            <div id="lose-animation" class="takedown-animation"></div>
+            <div id="lose-stats"></div>
+            <button id="lose-menu" class="menu-button">Back to Menu</button>
+        </div>
+    </div>
+    
+    <script src="config.js"></script>
+    <script src="entities.js"></script>
+    <script src="office.js"></script>
+    <script src="game.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
