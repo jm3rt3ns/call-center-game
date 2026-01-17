@@ -285,6 +285,9 @@ class Renderer3D {
     createOfficeWalls() {
         const wallHeight = 10;
         const wallThickness = 0.3;
+        const internalWallHeight = wallHeight * 0.6;
+        const doorHeight = internalWallHeight;
+        const doorWidth = 2;
         
         // Back wall (with windows)
         const backWallGeom = new THREE.BoxGeometry(50, wallHeight, wallThickness);
@@ -310,21 +313,67 @@ class Renderer3D {
         this.scene.add(rightWall);
         this.walls.push(rightWall);
         
-        // Internal wall between break room and bathroom
-        const internalWallGeom = new THREE.BoxGeometry(wallThickness, wallHeight * 0.6, 9);
-        const internalWall = new THREE.Mesh(internalWallGeom, this.materials.wall);
-        internalWall.position.set(14, wallHeight * 0.3, 5);
-        internalWall.castShadow = true;
-        this.scene.add(internalWall);
-        this.walls.push(internalWall);
+        // Internal wall between break room and bathroom (x=15 in grid, door at y=5)
+        // Wall segment before door (y=1 to y=4)
+        const internalWall1Geom = new THREE.BoxGeometry(wallThickness, internalWallHeight, 4);
+        const internalWall1 = new THREE.Mesh(internalWall1Geom, this.materials.wall);
+        internalWall1.position.set(14, internalWallHeight/2, 2.5);
+        internalWall1.castShadow = true;
+        this.scene.add(internalWall1);
+        this.walls.push(internalWall1);
         
-        // Wall between rooms and workspace
-        const dividerWallGeom = new THREE.BoxGeometry(35, wallHeight * 0.6, wallThickness);
-        const dividerWall = new THREE.Mesh(dividerWallGeom, this.materials.wall);
-        dividerWall.position.set(14, wallHeight * 0.3, 10);
-        dividerWall.castShadow = true;
-        this.scene.add(dividerWall);
-        this.walls.push(dividerWall);
+        // Wall segment after door (y=6 to y=9)
+        const internalWall2Geom = new THREE.BoxGeometry(wallThickness, internalWallHeight, 4);
+        const internalWall2 = new THREE.Mesh(internalWall2Geom, this.materials.wall);
+        internalWall2.position.set(14, internalWallHeight/2, 7.5);
+        internalWall2.castShadow = true;
+        this.scene.add(internalWall2);
+        this.walls.push(internalWall2);
+        
+        // Door frame between break room and bathroom
+        this.createDoorFrame(14, 5, 'z', doorWidth, doorHeight);
+        
+        // Wall between bathroom and workspace (x=28 in grid, door at y=5,6)
+        // Wall segment before door (y=1 to y=4)
+        const bathroomWall1Geom = new THREE.BoxGeometry(wallThickness, internalWallHeight, 4);
+        const bathroomWall1 = new THREE.Mesh(bathroomWall1Geom, this.materials.wall);
+        bathroomWall1.position.set(27, internalWallHeight/2, 2.5);
+        bathroomWall1.castShadow = true;
+        this.scene.add(bathroomWall1);
+        this.walls.push(bathroomWall1);
+        
+        // Wall segment after door (y=7 to y=9)
+        const bathroomWall2Geom = new THREE.BoxGeometry(wallThickness, internalWallHeight, 3);
+        const bathroomWall2 = new THREE.Mesh(bathroomWall2Geom, this.materials.wall);
+        bathroomWall2.position.set(27, internalWallHeight/2, 8);
+        bathroomWall2.castShadow = true;
+        this.scene.add(bathroomWall2);
+        this.walls.push(bathroomWall2);
+        
+        // Double door frame between bathroom and workspace
+        this.createDoorFrame(27, 5.5, 'z', doorWidth * 1.5, doorHeight);
+        
+        // Horizontal divider wall between rooms and workspace (y=10 in grid)
+        // Door opening at x=8-12, so we need wall segments on either side
+        
+        // Left segment (x=0 to x=7)
+        const dividerWall1Geom = new THREE.BoxGeometry(8, internalWallHeight, wallThickness);
+        const dividerWall1 = new THREE.Mesh(dividerWall1Geom, this.materials.wall);
+        dividerWall1.position.set(3, internalWallHeight/2, 10);
+        dividerWall1.castShadow = true;
+        this.scene.add(dividerWall1);
+        this.walls.push(dividerWall1);
+        
+        // Right segment (x=13 to x=28+)
+        const dividerWall2Geom = new THREE.BoxGeometry(20, internalWallHeight, wallThickness);
+        const dividerWall2 = new THREE.Mesh(dividerWall2Geom, this.materials.wall);
+        dividerWall2.position.set(23, internalWallHeight/2, 10);
+        dividerWall2.castShadow = true;
+        this.scene.add(dividerWall2);
+        this.walls.push(dividerWall2);
+        
+        // Door frame for main entrance to workspace
+        this.createDoorFrame(10, 10, 'x', 5, doorHeight);
         
         // Ceiling - transparent so player can see inside
         const ceilingGeom = new THREE.PlaneGeometry(50, 40);
@@ -338,6 +387,51 @@ class Renderer3D {
         ceiling.rotation.x = Math.PI / 2;
         ceiling.position.set(15, wallHeight, 15);
         this.scene.add(ceiling);
+    }
+    
+    createDoorFrame(x, z, orientation, width, height) {
+        // Create a door frame to visually indicate door openings
+        const frameThickness = 0.15;
+        const frameDepth = 0.4;
+        const frameMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 }); // Brown wood color
+        
+        if (orientation === 'z') {
+            // Door along z-axis (vertical walls like between rooms)
+            // Left post
+            const leftPostGeom = new THREE.BoxGeometry(frameThickness, height, frameDepth);
+            const leftPost = new THREE.Mesh(leftPostGeom, frameMat);
+            leftPost.position.set(x, height/2, z - width/2);
+            this.scene.add(leftPost);
+            
+            // Right post
+            const rightPost = new THREE.Mesh(leftPostGeom, frameMat);
+            rightPost.position.set(x, height/2, z + width/2);
+            this.scene.add(rightPost);
+            
+            // Top beam
+            const topBeamGeom = new THREE.BoxGeometry(frameThickness, frameThickness, width + frameThickness);
+            const topBeam = new THREE.Mesh(topBeamGeom, frameMat);
+            topBeam.position.set(x, height, z);
+            this.scene.add(topBeam);
+        } else {
+            // Door along x-axis (horizontal walls like divider)
+            // Left post
+            const leftPostGeom = new THREE.BoxGeometry(frameDepth, height, frameThickness);
+            const leftPost = new THREE.Mesh(leftPostGeom, frameMat);
+            leftPost.position.set(x - width/2, height/2, z);
+            this.scene.add(leftPost);
+            
+            // Right post
+            const rightPost = new THREE.Mesh(leftPostGeom, frameMat);
+            rightPost.position.set(x + width/2, height/2, z);
+            this.scene.add(rightPost);
+            
+            // Top beam
+            const topBeamGeom = new THREE.BoxGeometry(width + frameThickness, frameThickness, frameThickness);
+            const topBeam = new THREE.Mesh(topBeamGeom, frameMat);
+            topBeam.position.set(x, height, z);
+            this.scene.add(topBeam);
+        }
     }
     
     createWindows() {

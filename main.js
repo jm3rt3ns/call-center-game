@@ -124,11 +124,21 @@ function gameLoop(timestamp = 0) {
 // ============================================
 // UI UPDATES
 // ============================================
+let lastRevenue = 0;
+
 function updateUI() {
     if (!game || game.state !== GAME_STATE.PLAYING) return;
     
-    // Update HUD
-    hudRevenue.textContent = Math.floor(game.revenue);
+    // Update HUD with animation on revenue increase
+    const currentRevenue = Math.floor(game.revenue);
+    if (currentRevenue > lastRevenue) {
+        hudRevenue.classList.remove('revenue-up');
+        // Trigger reflow to restart animation
+        void hudRevenue.offsetWidth;
+        hudRevenue.classList.add('revenue-up');
+    }
+    lastRevenue = currentRevenue;
+    hudRevenue.textContent = currentRevenue;
     hudTime.textContent = game.getFormattedWorkTime();
     hudRealTime.textContent = game.getRemainingRealTime();
     
