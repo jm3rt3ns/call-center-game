@@ -195,9 +195,9 @@ class Game {
         const seconds = this.deltaTime / 1000;
         this.gameTime += seconds;
         
-        // Convert real time to work day time (20 min = 8 hours)
+        // Convert real time to work day time (5 min = 9 hours, 8am to 5pm)
         const totalGameSeconds = CONFIG.game.gameDurationMinutes * 60;
-        const workdayHours = 8;
+        const workdayHours = 9; // 8am to 5pm
         this.workdayTime = (this.gameTime / totalGameSeconds) * workdayHours;
     }
     
@@ -373,6 +373,9 @@ class Game {
     }
     
     render3D() {
+        // Update time-of-day lighting
+        this.renderer3D.updateTimeOfDay(this.workdayTime);
+        
         // Update 3D positions
         this.employees.forEach(employee => {
             this.renderer3D.updateEmployee(employee);

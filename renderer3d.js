@@ -33,6 +33,13 @@ class Renderer3D {
         // Animation
         this.animationMixers = [];
         
+        // Lighting references for time-of-day updates
+        this.sunLight = null;
+        this.ambientLight = null;
+        this.fillLight = null;
+        this.skyMaterial = null;
+        this.officeLights = [];
+        
         this.init();
     }
     
@@ -134,27 +141,27 @@ class Renderer3D {
     
     addLights() {
         // Ambient light
-        const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-        this.scene.add(ambient);
+        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        this.scene.add(this.ambientLight);
         
         // Main directional light (sun)
-        const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        sunLight.position.set(30, 50, 30);
-        sunLight.castShadow = true;
-        sunLight.shadow.mapSize.width = 2048;
-        sunLight.shadow.mapSize.height = 2048;
-        sunLight.shadow.camera.near = 0.5;
-        sunLight.shadow.camera.far = 100;
-        sunLight.shadow.camera.left = -40;
-        sunLight.shadow.camera.right = 40;
-        sunLight.shadow.camera.top = 40;
-        sunLight.shadow.camera.bottom = -40;
-        this.scene.add(sunLight);
+        this.sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        this.sunLight.position.set(30, 50, 30);
+        this.sunLight.castShadow = true;
+        this.sunLight.shadow.mapSize.width = 2048;
+        this.sunLight.shadow.mapSize.height = 2048;
+        this.sunLight.shadow.camera.near = 0.5;
+        this.sunLight.shadow.camera.far = 100;
+        this.sunLight.shadow.camera.left = -40;
+        this.sunLight.shadow.camera.right = 40;
+        this.sunLight.shadow.camera.top = 40;
+        this.sunLight.shadow.camera.bottom = -40;
+        this.scene.add(this.sunLight);
         
         // Fill light
-        const fillLight = new THREE.DirectionalLight(0x88aaff, 0.3);
-        fillLight.position.set(-20, 20, -10);
-        this.scene.add(fillLight);
+        this.fillLight = new THREE.DirectionalLight(0x88aaff, 0.3);
+        this.fillLight.position.set(-20, 20, -10);
+        this.scene.add(this.fillLight);
         
         // Office ceiling lights
         for (let x = 5; x < 30; x += 10) {
@@ -162,6 +169,7 @@ class Renderer3D {
                 const pointLight = new THREE.PointLight(0xffffee, 0.3, 15);
                 pointLight.position.set(x, 8, z);
                 this.scene.add(pointLight);
+                this.officeLights.push(pointLight);
             }
         }
     }
@@ -169,7 +177,7 @@ class Renderer3D {
     createSkybox() {
         // Simple gradient sky using a large sphere
         const skyGeo = new THREE.SphereGeometry(200, 32, 32);
-        const skyMat = new THREE.ShaderMaterial({
+        this.skyMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 topColor: { value: new THREE.Color(0x0077ff) },
                 bottomColor: { value: new THREE.Color(0xffffff) },
@@ -197,7 +205,7 @@ class Renderer3D {
             `,
             side: THREE.BackSide
         });
-        const sky = new THREE.Mesh(skyGeo, skyMat);
+        const sky = new THREE.Mesh(skyGeo, this.skyMaterial);
         this.scene.add(sky);
     }
     
@@ -836,6 +844,111 @@ class Renderer3D {
         this.camera.position.z += (cameraTargetZ - this.camera.position.z) * 0.05;
         
         this.camera.lookAt(targetX, 0, targetZ);
+    }
+    
+    /**
+     * Update lighting based on time of day
+     * @param {number} workdayTime - Hours elapsed (0-8 representing 8am-4pm, extended to 5pm)
+     */
+    updateTimeOfDay(workdayTime) {
+        // Map workday time (0-9 hours = 8am to 5pm) to sun position and color
+        // 0 = 8am (morning), 4.5 = 12:30pm (noon), 9 = 5pm (late afternoon)
+        const normalizedTime = workdayTime / 9; // 0 to 1 over 9 hours
+        
+        // Sun position - arc from east to west
+        // Morning: east (positive X), Noon: overhead, Afternoon: west (negative X)
+        const sunAngle = (normalizedTime - 0.5) * Math.PI; // -PI/2 to PI/2
+        const sunHeight = Math.cos(sunAngle) * 50 + 20; // Higher at noon
+        const sunX = Math.sin(sunAngle) * 60; // East to west
+        const sunZ = -30 + Math.abs(Math.sin(sunAngle)) * 20;
+        
+        if (this.sunLight) {
+            this.sunLight.position.set(sunX, sunHeight, sunZ);
+            
+            // Sun color changes through the day
+            // Morning: warm orange-yellow, Noon: bright white, Afternoon: warm orange
+            const morningColor = new THREE.Color(0xffd699); // Warm orange
+            const noonColor = new THREE.Color(0xffffff);    // Bright white
+            const eveningColor = new THREE.Color(0xffaa66); // Deep orange
+            
+            let sunColor;
+            if (normalizedTime < 0.4) {
+                // Morning: blend from warm to white
+                sunColor = morningColor.clone().lerp(noonColor, normalizedTime / 0.4);
+            } else if (normalizedTime < 0.6) {
+                // Midday: white
+                sunColor = noonColor.clone();
+            } else {
+                // Afternoon: blend from white to warm
+                sunColor = noonColor.clone().lerp(eveningColor, (normalizedTime - 0.6) / 0.4);
+            }
+            this.sunLight.color = sunColor;
+            
+            // Sun intensity - brightest at noon
+            const intensity = 0.5 + Math.cos(sunAngle) * 0.4;
+            this.sunLight.intensity = intensity;
+        }
+        
+        // Ambient light - brighter during midday
+        if (this.ambientLight) {
+            const ambientIntensity = 0.4 + Math.cos(sunAngle) * 0.25;
+            this.ambientLight.intensity = ambientIntensity;
+            
+            // Slight color shift for ambient
+            if (normalizedTime < 0.3) {
+                this.ambientLight.color.setHex(0xffeedd); // Warm morning
+            } else if (normalizedTime > 0.7) {
+                this.ambientLight.color.setHex(0xffddcc); // Warm evening
+            } else {
+                this.ambientLight.color.setHex(0xffffff); // Neutral midday
+            }
+        }
+        
+        // Sky color changes
+        if (this.skyMaterial && this.skyMaterial.uniforms) {
+            const morningTopColor = new THREE.Color(0x4488cc);    // Pale blue morning
+            const noonTopColor = new THREE.Color(0x0066ff);       // Deep blue noon
+            const eveningTopColor = new THREE.Color(0xff8844);    // Orange evening
+            
+            const morningBottomColor = new THREE.Color(0xffeedd); // Warm horizon morning
+            const noonBottomColor = new THREE.Color(0xaaddff);    // Light blue horizon noon  
+            const eveningBottomColor = new THREE.Color(0xffcc88); // Orange horizon evening
+            
+            let topColor, bottomColor;
+            if (normalizedTime < 0.3) {
+                // Morning
+                const t = normalizedTime / 0.3;
+                topColor = morningTopColor.clone().lerp(noonTopColor, t);
+                bottomColor = morningBottomColor.clone().lerp(noonBottomColor, t);
+            } else if (normalizedTime < 0.7) {
+                // Midday
+                topColor = noonTopColor.clone();
+                bottomColor = noonBottomColor.clone();
+            } else {
+                // Evening
+                const t = (normalizedTime - 0.7) / 0.3;
+                topColor = noonTopColor.clone().lerp(eveningTopColor, t);
+                bottomColor = noonBottomColor.clone().lerp(eveningBottomColor, t);
+            }
+            
+            this.skyMaterial.uniforms.topColor.value = topColor;
+            this.skyMaterial.uniforms.bottomColor.value = bottomColor;
+        }
+        
+        // Scene background/fog color matches sky
+        if (this.scene && this.skyMaterial && this.skyMaterial.uniforms) {
+            const bgColor = this.skyMaterial.uniforms.bottomColor.value.clone();
+            this.scene.background = bgColor;
+            if (this.scene.fog) {
+                this.scene.fog.color = bgColor;
+            }
+        }
+        
+        // Office lights get brighter in late afternoon
+        const officeLightIntensity = normalizedTime > 0.6 ? 0.3 + (normalizedTime - 0.6) * 0.5 : 0.3;
+        this.officeLights.forEach(light => {
+            light.intensity = officeLightIntensity;
+        });
     }
     
     render() {

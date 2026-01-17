@@ -12,7 +12,7 @@ const CONFIG = {
         gameDurationMinutes: 5,     // Real-time duration of one workday
         revenueTarget: 2000,        // Pesos needed to win
         workdayStartHour: 8,        // 8:00 AM
-        workdayEndHour: 16,         // 4:00 PM (8 hours total)
+        workdayEndHour: 17,         // 5:00 PM (9 hours total)
     },
 
     // ============================================
