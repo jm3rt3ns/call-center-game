@@ -302,6 +302,11 @@ class Employee {
             game.addRevenue(finalRevenue);
             this.callsMade++;
             this.revenueGenerated += finalRevenue;
+            
+            // Play call/cash sound occasionally
+            if (typeof soundManager !== 'undefined' && Math.random() < 0.15) {
+                soundManager.playCallSound();
+            }
         }
     }
     
@@ -333,9 +338,14 @@ class Employee {
     
     updateAppearance(game) {
         const colors = CONFIG.employee.colors;
+        const wasNotCritical = this.color !== colors.critical;
         
         if (this.sanity >= CONFIG.employee.sanityCriticalThreshold) {
             this.color = colors.critical;
+            // Play alarm sound when first entering critical state
+            if (wasNotCritical && typeof soundManager !== 'undefined') {
+                soundManager.playCriticalAlarmSound();
+            }
         } else if (this.state === EMPLOYEE_STATE.FEARFUL) {
             this.color = colors.fearful;
         } else if (this.state === EMPLOYEE_STATE.ON_COFFEE_BREAK || this.state === EMPLOYEE_STATE.ON_BATHROOM_BREAK) {
@@ -350,45 +360,109 @@ class Employee {
     }
     
     render(ctx) {
-        // Draw employee square
-        ctx.fillStyle = this.color;
-        ctx.fillRect(
-            this.x - this.size / 2,
-            this.y - this.size / 2,
-            this.size,
-            this.size
-        );
+        // Get isometric screen position
+        const game = window.currentGame;
+        let screenX = this.x;
+        let screenY = this.y;
         
-        // Draw border
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(
-            this.x - this.size / 2,
-            this.y - this.size / 2,
-            this.size,
-            this.size
-        );
+        if (game && game.office) {
+            const screenPos = game.office.worldToScreen(this.x, this.y);
+            screenX = screenPos.x;
+            screenY = screenPos.y;
+        }
+        
+        // Draw pixel art employee
+        this.drawPixelEmployee(ctx, screenX, screenY);
         
         // Draw sanity indicator (small bar above)
-        const barWidth = this.size;
-        const barHeight = 4;
-        const barY = this.y - this.size / 2 - 8;
+        const barWidth = 20;
+        const barHeight = 3;
+        const barY = screenY - 28;
         
         // Background
-        ctx.fillStyle = '#333';
-        ctx.fillRect(this.x - barWidth / 2, barY, barWidth, barHeight);
+        ctx.fillStyle = '#222';
+        ctx.fillRect(screenX - barWidth / 2, barY, barWidth, barHeight);
         
         // Sanity fill (green to red)
         const sanityPercent = this.sanity / 100;
-        const hue = (1 - sanityPercent) * 120; // 120 = green, 0 = red
+        const hue = (1 - sanityPercent) * 120;
         ctx.fillStyle = `hsl(${hue}, 80%, 50%)`;
-        ctx.fillRect(this.x - barWidth / 2, barY, barWidth * sanityPercent, barHeight);
+        ctx.fillRect(screenX - barWidth / 2, barY, barWidth * sanityPercent, barHeight);
         
-        // Draw state indicator
-        ctx.fillStyle = '#fff';
-        ctx.font = '10px Arial';
+        // Border
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(screenX - barWidth / 2, barY, barWidth, barHeight);
+    }
+    
+    drawPixelEmployee(ctx, x, y) {
+        const baseColor = this.color;
+        
+        // Body (isometric cube shape)
+        const bodyWidth = 14;
+        const bodyHeight = 18;
+        
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        ctx.ellipse(x, y + 2, 10, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Legs (pixel style)
+        ctx.fillStyle = '#3a3a5a';
+        ctx.fillRect(x - 5, y - 6, 4, 8);
+        ctx.fillRect(x + 1, y - 6, 4, 8);
+        
+        // Body/torso
+        ctx.fillStyle = baseColor;
+        ctx.fillRect(x - 7, y - 16, 14, 12);
+        
+        // Shirt collar
+        ctx.fillStyle = this.lightenColor(baseColor, 30);
+        ctx.fillRect(x - 3, y - 17, 6, 2);
+        
+        // Arms
+        ctx.fillStyle = baseColor;
+        ctx.fillRect(x - 10, y - 14, 4, 8);
+        ctx.fillRect(x + 6, y - 14, 4, 8);
+        
+        // Hands
+        ctx.fillStyle = '#e8c8a8';
+        ctx.fillRect(x - 10, y - 7, 4, 3);
+        ctx.fillRect(x + 6, y - 7, 4, 3);
+        
+        // Head
+        ctx.fillStyle = '#e8c8a8';
+        ctx.fillRect(x - 5, y - 24, 10, 8);
+        
+        // Hair (varies by employee index)
+        const hairColors = ['#3a2a1a', '#6a4a2a', '#2a1a0a', '#8a6a4a', '#1a1a2a'];
+        ctx.fillStyle = hairColors[this.index % hairColors.length];
+        ctx.fillRect(x - 5, y - 26, 10, 4);
+        
+        // Eyes (pixel dots)
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x - 3, y - 22, 2, 2);
+        ctx.fillRect(x + 1, y - 22, 2, 2);
+        
+        // Mouth based on state
+        if (this.state === EMPLOYEE_STATE.FEARFUL) {
+            // Worried mouth
+            ctx.fillRect(x - 2, y - 18, 4, 1);
+            ctx.fillRect(x - 1, y - 17, 2, 1);
+        } else if (this.sanity >= CONFIG.employee.sanityCriticalThreshold) {
+            // Angry mouth
+            ctx.fillRect(x - 2, y - 18, 4, 2);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x - 1, y - 18, 2, 1);
+        } else {
+            // Normal
+            ctx.fillRect(x - 1, y - 18, 2, 1);
+        }
+        
+        // State indicator icon above head
+        ctx.font = '10px monospace';
         ctx.textAlign = 'center';
-        
         let indicator = '';
         switch (this.state) {
             case EMPLOYEE_STATE.WORKING:
@@ -407,7 +481,23 @@ class Employee {
                 indicator = '🚻';
                 break;
         }
-        ctx.fillText(indicator, this.x, this.y + 4);
+        ctx.fillText(indicator, x, y - 32);
+        
+        // Critical warning glow
+        if (this.sanity >= CONFIG.employee.sanityCriticalThreshold) {
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x - 12, y - 28, 24, 32);
+        }
+    }
+    
+    lightenColor(color, percent) {
+        const num = parseInt(color.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = Math.min(255, (num >> 16) + amt);
+        const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+        const B = Math.min(255, (num & 0x0000FF) + amt);
+        return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
     }
 }
 
@@ -479,36 +569,123 @@ class Manager {
     }
     
     render(ctx) {
-        // Draw manager square (slightly larger)
-        ctx.fillStyle = this.color;
-        ctx.fillRect(
-            this.x - this.size / 2,
-            this.y - this.size / 2,
-            this.size,
-            this.size
-        );
+        // Get isometric screen position
+        const game = window.currentGame;
+        let screenX = this.x;
+        let screenY = this.y;
         
-        // Draw border
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(
-            this.x - this.size / 2,
-            this.y - this.size / 2,
-            this.size,
-            this.size
-        );
+        if (game && game.office) {
+            const screenPos = game.office.worldToScreen(this.x, this.y);
+            screenX = screenPos.x;
+            screenY = screenPos.y;
+        }
         
-        // Draw manager icon
-        ctx.fillStyle = '#fff';
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('👔', this.x, this.y + 5);
+        // Draw pixel art manager
+        this.drawPixelManager(ctx, screenX, screenY);
         
-        // Draw proximity circle (faint)
+        // Draw proximity circle (faint, in screen space)
         ctx.beginPath();
-        ctx.arc(this.x, this.y, CONFIG.employee.managerProximityRadius, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(239, 68, 68, 0.2)';
-        ctx.lineWidth = 1;
+        ctx.arc(screenX, screenY - 10, CONFIG.employee.managerProximityRadius * 0.7, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.15)';
+        ctx.lineWidth = 2;
         ctx.stroke();
+    }
+    
+    drawPixelManager(ctx, x, y) {
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.beginPath();
+        ctx.ellipse(x, y + 2, 12, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Legs (manager wears slacks)
+        ctx.fillStyle = '#2a2a3a';
+        ctx.fillRect(x - 5, y - 8, 4, 10);
+        ctx.fillRect(x + 1, y - 8, 4, 10);
+        
+        // Shoes
+        ctx.fillStyle = '#1a1a2a';
+        ctx.fillRect(x - 6, y, 5, 3);
+        ctx.fillRect(x + 1, y, 5, 3);
+        
+        // Body (suit jacket)
+        ctx.fillStyle = '#3a3a5a';
+        ctx.fillRect(x - 9, y - 20, 18, 14);
+        
+        // Suit lapels
+        ctx.fillStyle = '#2a2a4a';
+        ctx.beginPath();
+        ctx.moveTo(x - 2, y - 20);
+        ctx.lineTo(x - 5, y - 10);
+        ctx.lineTo(x - 2, y - 10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(x + 2, y - 20);
+        ctx.lineTo(x + 5, y - 10);
+        ctx.lineTo(x + 2, y - 10);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Tie
+        ctx.fillStyle = '#cc3333';
+        ctx.fillRect(x - 2, y - 19, 4, 10);
+        ctx.beginPath();
+        ctx.moveTo(x - 2, y - 9);
+        ctx.lineTo(x, y - 5);
+        ctx.lineTo(x + 2, y - 9);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Arms
+        ctx.fillStyle = '#3a3a5a';
+        ctx.fillRect(x - 12, y - 18, 4, 10);
+        ctx.fillRect(x + 8, y - 18, 4, 10);
+        
+        // Hands
+        ctx.fillStyle = '#e8c8a8';
+        ctx.fillRect(x - 12, y - 9, 4, 4);
+        ctx.fillRect(x + 8, y - 9, 4, 4);
+        
+        // Head
+        ctx.fillStyle = '#e8c8a8';
+        ctx.fillRect(x - 6, y - 30, 12, 10);
+        
+        // Hair (slicked back manager style)
+        ctx.fillStyle = '#2a2a3a';
+        ctx.fillRect(x - 6, y - 32, 12, 4);
+        ctx.fillRect(x - 7, y - 31, 2, 3);
+        ctx.fillRect(x + 5, y - 31, 2, 3);
+        
+        // Eyebrows (stern)
+        ctx.fillStyle = '#2a2a3a';
+        ctx.fillRect(x - 5, y - 28, 4, 1);
+        ctx.fillRect(x + 1, y - 28, 4, 1);
+        
+        // Eyes (stern look)
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x - 4, y - 26, 3, 2);
+        ctx.fillRect(x + 1, y - 26, 3, 2);
+        
+        // Eye whites
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x - 3, y - 26, 1, 1);
+        ctx.fillRect(x + 2, y - 26, 1, 1);
+        
+        // Frown
+        ctx.fillStyle = '#8a6a5a';
+        ctx.fillRect(x - 2, y - 22, 4, 1);
+        
+        // Manager label
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('👔', x, y - 36);
+        
+        // Authority aura effect (subtle pulse)
+        const pulse = Math.sin(Date.now() / 200) * 0.1 + 0.9;
+        ctx.strokeStyle = `rgba(239, 68, 68, ${0.3 * pulse})`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x - 14, y - 34, 28, 38);
     }
 }

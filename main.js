@@ -56,9 +56,16 @@ document.getElementById('win-menu').addEventListener('click', () => showScreen('
 document.getElementById('lose-menu').addEventListener('click', () => showScreen('main-menu'));
 
 function startGame() {
+    // Initialize sound manager
+    if (typeof soundManager !== 'undefined') {
+        soundManager.init();
+        soundManager.resume();
+        soundManager.playClickSound();
+    }
+    
     // Apply config from menu
     CONFIG.game.numberOfEmployees = parseInt(configEmployees.value) || 10;
-    CONFIG.game.gameDurationMinutes = parseInt(configDuration.value) || 20;
+    CONFIG.game.gameDurationMinutes = parseInt(configDuration.value) || 5;
     CONFIG.game.revenueTarget = parseInt(configTarget.value) || 500;
     
     // Update HUD target display
@@ -284,6 +291,11 @@ function showLoseScreen() {
 // ============================================
 document.addEventListener('keydown', (e) => {
     if (!game || game.state !== GAME_STATE.PLAYING) return;
+    
+    // Resume audio context on first key press
+    if (typeof soundManager !== 'undefined') {
+        soundManager.resume();
+    }
     
     switch (e.code) {
         case 'KeyW':

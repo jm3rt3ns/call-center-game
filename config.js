@@ -9,7 +9,7 @@ const CONFIG = {
     // ============================================
     game: {
         numberOfEmployees: 10,      // Number of call center employees
-        gameDurationMinutes: 20,    // Real-time duration of one workday
+        gameDurationMinutes: 5,     // Real-time duration of one workday
         revenueTarget: 2000,        // Pesos needed to win
         workdayStartHour: 8,        // 8:00 AM
         workdayEndHour: 16,         // 4:00 PM (8 hours total)
@@ -110,11 +110,16 @@ const CONFIG = {
     // ============================================
     office: {
         // Canvas size
-        canvasWidth: 900,
-        canvasHeight: 600,
+        canvasWidth: 1100,
+        canvasHeight: 650,
         
         // Grid settings for pathfinding
         gridSize: 20,               // Size of each grid cell
+        
+        // Isometric settings
+        isometric: true,            // Enable isometric view
+        tileWidth: 40,              // Width of isometric tile
+        tileHeight: 20,             // Height of isometric tile
         
         // Colors for office elements
         colors: {
@@ -132,8 +137,8 @@ const CONFIG = {
         // These are approximate centers for navigation
         rooms: {
             workspace: { x: 450, y: 350 },
-            breakRoom: { x: 150, y: 150 },
-            bathroom: { x: 750, y: 150 },
+            breakRoom: { x: 150, y: 100 },
+            bathroom: { x: 440, y: 100 },
         }
     },
 

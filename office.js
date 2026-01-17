@@ -1,6 +1,7 @@
 /**
  * Call Center Chaos - Office Layout
  * Handles the office map, pathfinding, and rendering of the environment
+ * Now with Isometric 2D Pixel Art style!
  */
 
 class Office {
@@ -11,12 +12,52 @@ class Office {
         this.cols = Math.floor(this.width / this.gridSize);
         this.rows = Math.floor(this.height / this.gridSize);
         
+        // Isometric settings
+        this.tileWidth = CONFIG.office.tileWidth || 40;
+        this.tileHeight = CONFIG.office.tileHeight || 20;
+        this.offsetX = this.width / 2 + 50;  // Shift right to center view
+        this.offsetY = 60;
+        
         // Grid: 0 = walkable, 1 = wall, 2 = desk, 3 = break room, 4 = bathroom
         this.grid = [];
         this.desks = [];
         this.paths = [];
         
         this.initializeLayout();
+    }
+    
+    // Convert cartesian to isometric coordinates
+    toIso(x, y) {
+        return {
+            x: (x - y) * (this.tileWidth / 2) + this.offsetX,
+            y: (x + y) * (this.tileHeight / 2) + this.offsetY
+        };
+    }
+    
+    // Convert isometric back to cartesian (for click detection)
+    fromIso(isoX, isoY) {
+        const x = isoX - this.offsetX;
+        const y = isoY - this.offsetY;
+        return {
+            x: (x / (this.tileWidth / 2) + y / (this.tileHeight / 2)) / 2,
+            y: (y / (this.tileHeight / 2) - x / (this.tileWidth / 2)) / 2
+        };
+    }
+    
+    // Convert pixel position to isometric screen position
+    worldToScreen(worldX, worldY) {
+        const gridX = worldX / this.gridSize;
+        const gridY = worldY / this.gridSize;
+        return this.toIso(gridX, gridY);
+    }
+    
+    // Convert screen position to world position
+    screenToWorld(screenX, screenY) {
+        const grid = this.fromIso(screenX, screenY);
+        return {
+            x: grid.x * this.gridSize,
+            y: grid.y * this.gridSize
+        };
     }
     
     initializeLayout() {
@@ -55,22 +96,22 @@ class Office {
         // Internal walls to create structure
         // Horizontal divider between top rooms and workspace
         for (let x = 0; x < this.cols; x++) {
-            if (x < 8 || (x > 12 && x < 32) || x > 36) {
+            if (x < 8 || x > 12) {
                 this.grid[10][x] = 1;
             }
         }
         
-        // Vertical wall separating break room from middle
+        // Vertical wall separating break room from bathroom
         for (let y = 1; y < 10; y++) {
-            if (y !== 5) { // Leave a door
+            if (y !== 5) { // Leave a door at y=5
                 this.grid[y][15] = 1;
             }
         }
         
-        // Vertical wall separating bathroom from middle
+        // Vertical wall separating bathroom from workspace corridor
         for (let y = 1; y < 10; y++) {
-            if (y !== 5) { // Leave a door
-                this.grid[y][29] = 1;
+            if (y !== 5 && y !== 6) { // Leave a double-wide door at y=5 and y=6
+                this.grid[y][28] = 1;
             }
         }
     }
@@ -101,10 +142,10 @@ class Office {
     }
     
     createBathroom() {
-        // Bathroom in top-right area
+        // Bathroom adjacent to break room (right side)
         this.bathroomBounds = {
-            x1: 30, y1: 1,
-            x2: 43, y2: 9
+            x1: 16, y1: 1,
+            x2: 27, y2: 9
         };
         
         // Mark bathroom floor
@@ -118,9 +159,9 @@ class Office {
         
         // Bathroom stall position
         this.bathroomStall = {
-            x: 36 * this.gridSize,
+            x: 22 * this.gridSize,
             y: 4 * this.gridSize,
-            gridX: 36,
+            gridX: 22,
             gridY: 4
         };
     }
@@ -307,72 +348,346 @@ class Office {
     }
     
     render(ctx) {
-        // Draw floor
-        ctx.fillStyle = CONFIG.office.colors.floor;
+        // Draw floor with isometric perspective
+        this.renderIsometricFloor(ctx);
+        
+        // Draw grid cells based on type (sorted for proper depth)
+        this.renderIsometricTiles(ctx);
+        
+        // Draw coffee station
+        this.renderCoffeeStation(ctx);
+        
+        // Draw bathroom stall
+        this.renderBathroomStall(ctx);
+        
+        // Draw room labels
+        this.renderLabels(ctx);
+    }
+    
+    renderIsometricFloor(ctx) {
+        // Dark background
+        ctx.fillStyle = '#1a1a2e';
         ctx.fillRect(0, 0, this.width, this.height);
         
-        // Draw grid cells based on type
+        // Draw base floor grid with pixel art style
+        ctx.strokeStyle = '#2a2a4a';
+        ctx.lineWidth = 1;
+        
+        for (let y = 0; y < this.rows; y++) {
+            for (let x = 0; x < this.cols; x++) {
+                if (this.grid[y][x] !== 1) { // Don't draw under walls
+                    this.drawIsometricTile(ctx, x, y, CONFIG.office.colors.floor, false);
+                }
+            }
+        }
+    }
+    
+    renderIsometricTiles(ctx) {
+        // Render from back to front for proper depth
         for (let y = 0; y < this.rows; y++) {
             for (let x = 0; x < this.cols; x++) {
                 const cellType = this.grid[y][x];
-                const px = x * this.gridSize;
-                const py = y * this.gridSize;
                 
                 switch (cellType) {
                     case 1: // Wall
-                        ctx.fillStyle = CONFIG.office.colors.wall;
-                        ctx.fillRect(px, py, this.gridSize, this.gridSize);
+                        this.drawIsometricWall(ctx, x, y);
                         break;
                     case 2: // Desk
-                        ctx.fillStyle = CONFIG.office.colors.desk;
-                        ctx.fillRect(px + 1, py + 1, this.gridSize - 2, this.gridSize - 2);
+                        this.drawIsometricDesk(ctx, x, y);
                         break;
                     case 3: // Break room
-                        ctx.fillStyle = CONFIG.office.colors.breakRoom;
-                        ctx.fillRect(px, py, this.gridSize, this.gridSize);
+                        this.drawIsometricTile(ctx, x, y, CONFIG.office.colors.breakRoom, false);
                         break;
                     case 4: // Bathroom
-                        ctx.fillStyle = CONFIG.office.colors.bathroom;
-                        ctx.fillRect(px, py, this.gridSize, this.gridSize);
+                        this.drawIsometricTile(ctx, x, y, CONFIG.office.colors.bathroom, false);
                         break;
                 }
             }
         }
+    }
+    
+    drawIsometricTile(ctx, gridX, gridY, color, raised = false) {
+        const iso = this.toIso(gridX, gridY);
+        const tw = this.tileWidth;
+        const th = this.tileHeight;
         
-        // Draw coffee station
-        ctx.fillStyle = CONFIG.office.colors.coffeeStation;
-        ctx.fillRect(
-            this.coffeeStation.x - 15,
-            this.coffeeStation.y - 15,
-            30, 30
-        );
+        // Pixel art style - draw diamond shape for floor tile
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(iso.x, iso.y);
+        ctx.lineTo(iso.x + tw/2, iso.y + th/2);
+        ctx.lineTo(iso.x, iso.y + th);
+        ctx.lineTo(iso.x - tw/2, iso.y + th/2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Add pixel-art style highlights
+        ctx.strokeStyle = this.lightenColor(color, 20);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(iso.x, iso.y);
+        ctx.lineTo(iso.x + tw/2, iso.y + th/2);
+        ctx.stroke();
+        
+        ctx.strokeStyle = this.darkenColor(color, 20);
+        ctx.beginPath();
+        ctx.moveTo(iso.x, iso.y + th);
+        ctx.lineTo(iso.x - tw/2, iso.y + th/2);
+        ctx.stroke();
+    }
+    
+    drawIsometricWall(ctx, gridX, gridY) {
+        const iso = this.toIso(gridX, gridY);
+        const tw = this.tileWidth;
+        const th = this.tileHeight;
+        const wallHeight = 25;
+        const baseColor = CONFIG.office.colors.wall;
+        
+        // Top face
+        ctx.fillStyle = this.lightenColor(baseColor, 30);
+        ctx.beginPath();
+        ctx.moveTo(iso.x, iso.y - wallHeight);
+        ctx.lineTo(iso.x + tw/2, iso.y + th/2 - wallHeight);
+        ctx.lineTo(iso.x, iso.y + th - wallHeight);
+        ctx.lineTo(iso.x - tw/2, iso.y + th/2 - wallHeight);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Left face
+        ctx.fillStyle = this.darkenColor(baseColor, 10);
+        ctx.beginPath();
+        ctx.moveTo(iso.x - tw/2, iso.y + th/2 - wallHeight);
+        ctx.lineTo(iso.x, iso.y + th - wallHeight);
+        ctx.lineTo(iso.x, iso.y + th);
+        ctx.lineTo(iso.x - tw/2, iso.y + th/2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Right face
+        ctx.fillStyle = baseColor;
+        ctx.beginPath();
+        ctx.moveTo(iso.x + tw/2, iso.y + th/2 - wallHeight);
+        ctx.lineTo(iso.x, iso.y + th - wallHeight);
+        ctx.lineTo(iso.x, iso.y + th);
+        ctx.lineTo(iso.x + tw/2, iso.y + th/2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Pixel art edge highlights
+        ctx.strokeStyle = this.lightenColor(baseColor, 50);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(iso.x, iso.y - wallHeight);
+        ctx.lineTo(iso.x + tw/2, iso.y + th/2 - wallHeight);
+        ctx.stroke();
+    }
+    
+    drawIsometricDesk(ctx, gridX, gridY) {
+        const iso = this.toIso(gridX, gridY);
+        const tw = this.tileWidth;
+        const th = this.tileHeight;
+        const deskHeight = 12;
+        const baseColor = CONFIG.office.colors.desk;
+        
+        // Desktop (top face) - pixel art wooden desk
+        ctx.fillStyle = this.lightenColor(baseColor, 20);
+        ctx.beginPath();
+        ctx.moveTo(iso.x, iso.y - deskHeight);
+        ctx.lineTo(iso.x + tw/2 - 4, iso.y + th/2 - 2 - deskHeight);
+        ctx.lineTo(iso.x, iso.y + th - 4 - deskHeight);
+        ctx.lineTo(iso.x - tw/2 + 4, iso.y + th/2 - 2 - deskHeight);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Wood grain lines (pixel art style)
+        ctx.strokeStyle = this.darkenColor(baseColor, 15);
+        ctx.lineWidth = 1;
+        for (let i = 1; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(iso.x - tw/4 + i*5, iso.y - deskHeight + i*2);
+            ctx.lineTo(iso.x + tw/4 - i*3, iso.y + th/3 - deskHeight + i*2);
+            ctx.stroke();
+        }
+        
+        // Left face
+        ctx.fillStyle = this.darkenColor(baseColor, 20);
+        ctx.beginPath();
+        ctx.moveTo(iso.x - tw/2 + 4, iso.y + th/2 - 2 - deskHeight);
+        ctx.lineTo(iso.x, iso.y + th - 4 - deskHeight);
+        ctx.lineTo(iso.x, iso.y + th - 4);
+        ctx.lineTo(iso.x - tw/2 + 4, iso.y + th/2 - 2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Right face
+        ctx.fillStyle = baseColor;
+        ctx.beginPath();
+        ctx.moveTo(iso.x + tw/2 - 4, iso.y + th/2 - 2 - deskHeight);
+        ctx.lineTo(iso.x, iso.y + th - 4 - deskHeight);
+        ctx.lineTo(iso.x, iso.y + th - 4);
+        ctx.lineTo(iso.x + tw/2 - 4, iso.y + th/2 - 2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Computer monitor (pixel art)
+        this.drawPixelMonitor(ctx, iso.x, iso.y - deskHeight - 8);
+    }
+    
+    drawPixelMonitor(ctx, x, y) {
+        // Monitor body
+        ctx.fillStyle = '#2a2a3a';
+        ctx.fillRect(x - 6, y - 8, 12, 8);
+        
+        // Screen
+        ctx.fillStyle = '#4a8a4a';
+        ctx.fillRect(x - 5, y - 7, 10, 6);
+        
+        // Screen content (pixel lines)
+        ctx.fillStyle = '#6aba6a';
+        ctx.fillRect(x - 4, y - 6, 6, 1);
+        ctx.fillRect(x - 4, y - 4, 4, 1);
+        ctx.fillRect(x - 4, y - 2, 7, 1);
+        
+        // Stand
+        ctx.fillStyle = '#1a1a2a';
+        ctx.fillRect(x - 2, y, 4, 3);
+    }
+    
+    renderCoffeeStation(ctx) {
+        const screenPos = this.worldToScreen(this.coffeeStation.x, this.coffeeStation.y);
+        this.drawPixelCoffeeMachine(ctx, screenPos.x, screenPos.y - 15);
+    }
+    
+    drawPixelCoffeeMachine(ctx, x, y) {
+        // Base/body of coffee machine
+        ctx.fillStyle = '#4a3a2a';
+        
+        // Left face
+        ctx.beginPath();
+        ctx.moveTo(x - 12, y);
+        ctx.lineTo(x - 12, y - 20);
+        ctx.lineTo(x, y - 25);
+        ctx.lineTo(x, y - 5);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Right face
+        ctx.fillStyle = '#6a5a4a';
+        ctx.beginPath();
+        ctx.moveTo(x, y - 5);
+        ctx.lineTo(x, y - 25);
+        ctx.lineTo(x + 12, y - 20);
+        ctx.lineTo(x + 12, y);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Top
+        ctx.fillStyle = '#7a6a5a';
+        ctx.beginPath();
+        ctx.moveTo(x, y - 25);
+        ctx.lineTo(x + 12, y - 20);
+        ctx.lineTo(x, y - 15);
+        ctx.lineTo(x - 12, y - 20);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Coffee pot
+        ctx.fillStyle = '#3a2a1a';
+        ctx.fillRect(x - 4, y - 12, 8, 8);
+        
+        // Coffee inside
+        ctx.fillStyle = '#5a3a1a';
+        ctx.fillRect(x - 3, y - 10, 6, 5);
+        
+        // Steam (pixel dots)
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillRect(x - 2, y - 28, 2, 2);
+        ctx.fillRect(x + 1, y - 30, 2, 2);
+        ctx.fillRect(x - 1, y - 33, 2, 2);
+        
+        // Label
         ctx.fillStyle = '#fff';
-        ctx.font = '16px Arial';
+        ctx.font = 'bold 10px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('☕', this.coffeeStation.x, this.coffeeStation.y + 5);
+        ctx.fillText('☕', x, y + 10);
+    }
+    
+    renderBathroomStall(ctx) {
+        const screenPos = this.worldToScreen(this.bathroomStall.x, this.bathroomStall.y);
+        this.drawPixelBathroom(ctx, screenPos.x, screenPos.y - 15);
+    }
+    
+    drawPixelBathroom(ctx, x, y) {
+        // Bathroom stall walls
+        ctx.fillStyle = '#2a3a4a';
         
-        // Draw bathroom stall
-        ctx.fillStyle = CONFIG.office.colors.bathroomStall;
-        ctx.fillRect(
-            this.bathroomStall.x - 15,
-            this.bathroomStall.y - 15,
-            30, 30
-        );
+        // Back wall
+        ctx.fillRect(x - 15, y - 25, 30, 20);
+        
+        // Side panels
+        ctx.fillStyle = '#3a4a5a';
+        ctx.fillRect(x - 15, y - 25, 4, 25);
+        ctx.fillRect(x + 11, y - 25, 4, 25);
+        
+        // Door
+        ctx.fillStyle = '#4a5a6a';
+        ctx.fillRect(x - 8, y - 22, 16, 22);
+        
+        // Door handle
+        ctx.fillStyle = '#8a8a8a';
+        ctx.fillRect(x + 4, y - 12, 3, 2);
+        
+        // Toilet (simple pixel art)
+        ctx.fillStyle = '#eaeaea';
+        ctx.fillRect(x - 4, y - 8, 8, 6);
+        ctx.fillStyle = '#dadadd';
+        ctx.fillRect(x - 3, y - 7, 6, 4);
+        
+        // Tank
+        ctx.fillStyle = '#dadada';
+        ctx.fillRect(x - 3, y - 14, 6, 6);
+        
+        // Label
         ctx.fillStyle = '#fff';
-        ctx.fillText('🚻', this.bathroomStall.x, this.bathroomStall.y + 5);
-        
-        // Draw room labels
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.font = '14px Arial';
-        ctx.fillText('BREAK ROOM', 140, 90);
-        ctx.fillText('BATHROOM', 730, 90);
-        ctx.fillText('WORKSPACE', 450, 250);
-        
-        // Draw desk numbers
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('🚻', x, y + 10);
+    }
+    
+    renderLabels(ctx) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '10px Arial';
-        this.desks.forEach((desk, index) => {
-            ctx.fillText(`${index + 1}`, desk.x, desk.y + 3);
-        });
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        
+        // Break room label
+        const breakRoomIso = this.toIso(7, 5);
+        ctx.fillText('BREAK ROOM', breakRoomIso.x, breakRoomIso.y - 30);
+        
+        // Bathroom label (now adjacent to break room)
+        const bathroomIso = this.toIso(22, 5);
+        ctx.fillText('BATHROOM', bathroomIso.x, bathroomIso.y - 30);
+        
+        // Workspace label
+        const workspaceIso = this.toIso(22, 20);
+        ctx.fillText('WORKSPACE', workspaceIso.x, workspaceIso.y - 20);
+    }
+    
+    // Color utility functions
+    lightenColor(color, percent) {
+        const num = parseInt(color.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = Math.min(255, (num >> 16) + amt);
+        const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+        const B = Math.min(255, (num & 0x0000FF) + amt);
+        return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+    }
+    
+    darkenColor(color, percent) {
+        const num = parseInt(color.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = Math.max(0, (num >> 16) - amt);
+        const G = Math.max(0, ((num >> 8) & 0x00FF) - amt);
+        const B = Math.max(0, (num & 0x0000FF) - amt);
+        return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
     }
 }

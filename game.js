@@ -8,6 +8,9 @@ class Game {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         
+        // Make game globally accessible for isometric rendering
+        window.currentGame = this;
+        
         // Game state
         this.state = GAME_STATE.MENU;
         this.revenue = 0;
@@ -32,6 +35,12 @@ class Game {
         // Timing
         this.lastTime = 0;
         this.deltaTime = 0;
+        
+        // Sound
+        this.lastFootstepTime = 0;
+        this.footstepInterval = 200; // ms between footsteps
+        this.lastCallSoundTime = 0;
+        this.callSoundInterval = 3000; // ms between call sounds
         
         // Stats for end screen
         this.stats = {
@@ -215,6 +224,15 @@ class Game {
     
     endGame(won) {
         this.state = won ? GAME_STATE.WIN : GAME_STATE.LOSE;
+        
+        // Play appropriate sound
+        if (typeof soundManager !== 'undefined') {
+            if (won) {
+                soundManager.playWinSound();
+            } else {
+                soundManager.playGameOverSound();
+            }
+        }
     }
     
     // ============================================
@@ -227,6 +245,11 @@ class Game {
         this.coffeeDumped = true;
         this.coffeeDumpTimer = CONFIG.manager.coffeeDumpDuration;
         this.stats.coffeesDumped++;
+        
+        // Play coffee dump sound
+        if (typeof soundManager !== 'undefined') {
+            soundManager.playCoffeeDumpSound();
+        }
         
         // Affect all employees who need coffee
         this.employees.forEach(emp => {
@@ -249,6 +272,11 @@ class Game {
         this.bathroomCloseTimer = CONFIG.manager.bathroomCloseDuration;
         this.stats.bathroomsClosed++;
         
+        // Play bathroom close sound
+        if (typeof soundManager !== 'undefined') {
+            soundManager.playBathroomSound();
+        }
+        
         // Affect all employees who need bathroom
         this.employees.forEach(emp => {
             if (emp.needsBathroom || emp.state === EMPLOYEE_STATE.ON_BATHROOM_BREAK) {
@@ -269,6 +297,11 @@ class Game {
             this.stats.employeesSentBack++;
             this.collidingEmployee = null;
             this.showCollisionPrompt = false;
+            
+            // Play send back sound
+            if (typeof soundManager !== 'undefined') {
+                soundManager.playSendBackSound();
+            }
         }
     }
     
@@ -305,45 +338,59 @@ class Game {
     }
     
     renderAbilityIndicators() {
+        // Get isometric positions
+        const coffeeScreen = this.office.worldToScreen(this.office.coffeeStation.x, this.office.coffeeStation.y);
+        const bathroomScreen = this.office.worldToScreen(this.office.bathroomStall.x, this.office.bathroomStall.y);
+        
         // Coffee dumped indicator
         if (this.coffeeDumped) {
             this.ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
-            this.ctx.fillRect(
-                this.office.coffeeStation.x - 25,
-                this.office.coffeeStation.y - 25,
-                50, 50
-            );
+            this.ctx.beginPath();
+            this.ctx.arc(coffeeScreen.x, coffeeScreen.y - 10, 30, 0, Math.PI * 2);
+            this.ctx.fill();
+            
             this.ctx.fillStyle = '#fff';
-            this.ctx.font = '12px Arial';
+            this.ctx.font = 'bold 14px monospace';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText('❌', this.office.coffeeStation.x, this.office.coffeeStation.y - 30);
-            this.ctx.fillText(`${Math.ceil(this.coffeeDumpTimer)}s`, this.office.coffeeStation.x, this.office.coffeeStation.y + 35);
+            this.ctx.fillText('❌ DUMPED', coffeeScreen.x, coffeeScreen.y - 35);
+            this.ctx.font = 'bold 12px monospace';
+            this.ctx.fillText(`${Math.ceil(this.coffeeDumpTimer)}s`, coffeeScreen.x, coffeeScreen.y + 25);
         }
         
         // Bathroom closed indicator
         if (this.bathroomClosed) {
             this.ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
-            this.ctx.fillRect(
-                this.office.bathroomStall.x - 25,
-                this.office.bathroomStall.y - 25,
-                50, 50
-            );
+            this.ctx.beginPath();
+            this.ctx.arc(bathroomScreen.x, bathroomScreen.y - 10, 30, 0, Math.PI * 2);
+            this.ctx.fill();
+            
             this.ctx.fillStyle = '#fff';
-            this.ctx.font = '12px Arial';
+            this.ctx.font = 'bold 14px monospace';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText('🚧', this.office.bathroomStall.x, this.office.bathroomStall.y - 30);
-            this.ctx.fillText(`${Math.ceil(this.bathroomCloseTimer)}s`, this.office.bathroomStall.x, this.office.bathroomStall.y + 35);
+            this.ctx.fillText('🚧 CLOSED', bathroomScreen.x, bathroomScreen.y - 35);
+            this.ctx.font = 'bold 12px monospace';
+            this.ctx.fillText(`${Math.ceil(this.bathroomCloseTimer)}s`, bathroomScreen.x, bathroomScreen.y + 25);
         }
     }
     
     renderCollisionPrompt() {
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        this.ctx.fillRect(this.manager.x - 60, this.manager.y - 50, 120, 35);
+        // Get manager's isometric position
+        const managerScreen = this.office.worldToScreen(this.manager.x, this.manager.y);
+        
+        // Pixel art style prompt box
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        this.ctx.fillRect(managerScreen.x - 70, managerScreen.y - 70, 140, 40);
+        
+        // Border
+        this.ctx.strokeStyle = '#fff';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(managerScreen.x - 70, managerScreen.y - 70, 140, 40);
+        
         this.ctx.fillStyle = '#fff';
-        this.ctx.font = '12px Arial';
+        this.ctx.font = 'bold 11px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('Press SPACE to', this.manager.x, this.manager.y - 38);
-        this.ctx.fillText('send back to desk', this.manager.x, this.manager.y - 24);
+        this.ctx.fillText('Press [SPACE] to', managerScreen.x, managerScreen.y - 55);
+        this.ctx.fillText('send back to desk', managerScreen.x, managerScreen.y - 40);
     }
     
     // ============================================
