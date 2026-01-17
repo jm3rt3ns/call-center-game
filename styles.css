@@ -196,21 +196,36 @@ body {
 }
 
 #game-canvas {
-    border: 3px solid #444;
-    border-radius: 10px;
+    border: 2px solid #5a6a8a;
+    border-radius: 8px;
     background: #2a2a4a;
+    box-shadow: 0 0 20px rgba(100, 150, 255, 0.2);
+}
+
+#game-3d-container {
+    border: 2px solid #5a6a8a;
+    border-radius: 8px;
+    background: #1a1a2a;
+    box-shadow: 0 0 20px rgba(100, 150, 255, 0.3);
+    overflow: hidden;
+}
+
+#game-3d-container canvas {
+    display: block;
+    border-radius: 6px;
 }
 
 #employee-panel {
     position: absolute;
-    right: 1rem;
-    top: 5rem;
-    bottom: 1rem;
+    right: 0.5rem;
+    top: 4rem;
+    bottom: 0.5rem;
     width: 220px;
-    background: rgba(0, 0, 0, 0.7);
-    padding: 1rem;
-    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 0.8rem;
+    border-radius: 8px;
     overflow-y: auto;
+    border: 1px solid rgba(100, 200, 255, 0.3);
 }
 
 #employee-panel h3 {

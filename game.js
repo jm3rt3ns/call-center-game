@@ -4,11 +4,13 @@
  */
 
 class Game {
-    constructor(canvas) {
+    constructor(canvas, use3D = true) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
+        this.use3D = use3D;
+        this.renderer3D = null;
         
-        // Make game globally accessible for isometric rendering
+        // Make game globally accessible for rendering
         window.currentGame = this;
         
         // Game state
@@ -64,11 +66,31 @@ class Game {
         // Create office
         this.office = new Office();
         
+        // Initialize 3D renderer
+        if (this.use3D) {
+            const container = document.getElementById('game-3d-container');
+            if (container) {
+                // Clear previous renderer
+                container.innerHTML = '';
+                this.renderer3D = new Renderer3D(container);
+                this.init3DScene();
+                // Hide 2D canvas
+                this.canvas.style.display = 'none';
+            }
+        } else {
+            this.canvas.style.display = 'block';
+        }
+        
         // Create manager in center of workspace
         this.manager = new Manager(450, 400);
         
         // Create employees
         this.createEmployees();
+        
+        // Create 3D entities
+        if (this.renderer3D) {
+            this.create3DEntities();
+        }
         
         // Reset game state
         this.revenue = 0;
@@ -86,6 +108,35 @@ class Game {
             bathroomsClosed: 0,
             employeesSentBack: 0,
         };
+    }
+    
+    init3DScene() {
+        // Create desks in the 3D scene based on office layout
+        this.office.desks.forEach((desk, index) => {
+            const x = desk.gridX;
+            const z = desk.gridY;
+            this.renderer3D.createDesk(x, z, index);
+        });
+        
+        // Create coffee station
+        const coffeeX = this.office.coffeeStation.gridX;
+        const coffeeZ = this.office.coffeeStation.gridY;
+        this.renderer3D.createCoffeeStation(coffeeX, coffeeZ);
+        
+        // Create bathroom stall
+        const bathroomX = this.office.bathroomStall.gridX;
+        const bathroomZ = this.office.bathroomStall.gridY;
+        this.renderer3D.createBathroomStall(bathroomX, bathroomZ);
+    }
+    
+    create3DEntities() {
+        // Create 3D manager
+        this.renderer3D.createManager(this.manager);
+        
+        // Create 3D employees
+        this.employees.forEach(employee => {
+            this.renderer3D.createEmployee(employee);
+        });
     }
     
     createEmployees() {
@@ -314,6 +365,27 @@ class Game {
     // ============================================
     
     render() {
+        if (this.use3D && this.renderer3D) {
+            this.render3D();
+        } else {
+            this.render2D();
+        }
+    }
+    
+    render3D() {
+        // Update 3D positions
+        this.employees.forEach(employee => {
+            this.renderer3D.updateEmployee(employee);
+        });
+        
+        this.renderer3D.updateManager(this.manager);
+        this.renderer3D.updateCamera(this.manager);
+        
+        // Render the 3D scene
+        this.renderer3D.render();
+    }
+    
+    render2D() {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
@@ -338,6 +410,8 @@ class Game {
     }
     
     renderAbilityIndicators() {
+        if (this.use3D) return; // Skip for 3D mode
+        
         // Get isometric positions
         const coffeeScreen = this.office.worldToScreen(this.office.coffeeStation.x, this.office.coffeeStation.y);
         const bathroomScreen = this.office.worldToScreen(this.office.bathroomStall.x, this.office.bathroomStall.y);
@@ -374,6 +448,8 @@ class Game {
     }
     
     renderCollisionPrompt() {
+        if (this.use3D) return; // Skip for 3D mode - handled by HUD
+        
         // Get manager's isometric position
         const managerScreen = this.office.worldToScreen(this.manager.x, this.manager.y);
         

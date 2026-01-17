@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Call Center Chaos - Management Simulation</title>
+    <title>Call Center Chaos - 3D Management Simulation</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
     <div id="game-container">
@@ -86,6 +87,7 @@
             </div>
             
             <canvas id="game-canvas"></canvas>
+            <div id="game-3d-container"></div>
             
             <div id="employee-panel">
                 <h3>Employee Status</h3>
@@ -115,6 +117,7 @@
     <script src="sounds.js"></script>
     <script src="entities.js"></script>
     <script src="office.js"></script>
+    <script src="renderer3d.js"></script>
     <script src="game.js"></script>
     <script src="main.js"></script>
 </body>

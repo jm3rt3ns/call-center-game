@@ -71,8 +71,12 @@ function startGame() {
     // Update HUD target display
     hudTarget.textContent = CONFIG.game.revenueTarget;
     
-    // Initialize game
-    game = new Game(canvas);
+    // Update canvas size for fullscreen
+    CONFIG.office.canvasWidth = window.innerWidth - 250;
+    CONFIG.office.canvasHeight = window.innerHeight - 90;
+    
+    // Initialize game with 3D mode enabled
+    game = new Game(canvas, true);
     game.init();
     
     // Show game screen
