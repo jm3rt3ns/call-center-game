@@ -46,4 +46,9 @@ if [ ! -e "$site/assets/sprites/packs.json" ]; then
 fi
 [ "$missing" -eq 0 ]
 
+# Sprite art is named by the pack manifests, not by the pages, so check it
+# separately: every sheet has to be in the upload and manifests.js has to
+# still match the JSON it mirrors.
+python3 scripts/gen-sprite-manifests.py --check --root "$site"
+
 echo "Staged $(find "$site" -type f | wc -l) files in $site"
