@@ -43,10 +43,15 @@ python3 -m http.server 8000
 | `sprites.js` | sprite-pack loading and animation playback |
 | `entities.js` | the manager and the employees, their AI and their drawing |
 | `office.js` | floor plan, isometric projection, A* pathfinding, environment art |
+| `camera.js` | the zoomed view that follows the boss around the office |
 | `game.js` | game loop, win/lose rules, the render pass |
 | `main.js` | menus, HUD, input, end screens |
 | `sounds.js` | synthesised sound effects |
 | `assets/sprites/` | character sprite packs - see its own README |
+
+The view is a zoom on the boss rather than the whole floor plan - see
+`CONFIG.camera` for the zoom level, how hard the camera pulls after him, and
+how far ahead of him it looks.
 
 Characters draw from sprite packs when one is assigned to them in
 `CONFIG.sprites.actors`, and fall back to procedural pixel drawing otherwise.

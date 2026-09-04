@@ -143,6 +143,31 @@ const CONFIG = {
     },
 
     // ============================================
+    // CAMERA
+    // ============================================
+    camera: {
+        // How much closer than the old full-office view. 1 = the original
+        // framing, 1.75 sits between a comfortable 1.5x and a tight 2x.
+        zoom: 1.75,
+        
+        // How hard the camera pulls toward the boss, per second. Higher is
+        // snappier, lower drifts along behind him.
+        smoothing: 4.5,
+        
+        // Screen pixels he can wander from the centre before the camera
+        // bothers to move - keeps small shuffles from sliding the office.
+        deadzoneX: 40,
+        deadzoneY: 24,
+        
+        // Seconds of his movement to lead by, so the view opens up ahead of
+        // him rather than behind
+        lookAheadSeconds: 0.35,
+        
+        // Screen pixels to lift the focus off his feet, framing his body
+        focusOffsetY: -28,
+    },
+
+    // ============================================
     // SPRITE PACKS
     // ============================================
     sprites: {

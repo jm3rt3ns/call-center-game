@@ -22,6 +22,9 @@ class Game {
         this.manager = null;
         this.employees = [];
         
+        // Camera that frames the boss
+        this.camera = null;
+        
         // Ability states
         this.coffeeDumped = false;
         this.coffeeDumpTimer = 0;
@@ -72,6 +75,10 @@ class Game {
         
         // Create employees
         this.createEmployees();
+        
+        // Zoom in on the boss and start the view already on him
+        this.camera = new Camera(this.canvas.width, this.canvas.height);
+        this.camera.snapTo(this.office, this.manager);
         
         // Reset game state
         this.revenue = 0;
@@ -135,6 +142,9 @@ class Game {
         
         // Update manager
         this.manager.update(this.deltaTime, this);
+        
+        // Trail the camera after him
+        this.camera.follow(this.office, this.manager, this.deltaTime);
         
         // Update employees and check for collisions
         this.updateEmployees();
@@ -335,6 +345,10 @@ class Game {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
+        // Everything in the office is drawn through the camera, so it all
+        // zooms and pans together
+        if (this.camera) this.camera.apply(this.ctx);
+        
         // Render office
         this.office.render(this.ctx);
         
@@ -350,7 +364,10 @@ class Game {
             this.renderCollisionPrompt();
         }
         
-        // Tint the whole scene to the time of day
+        if (this.camera) this.camera.release(this.ctx);
+        
+        // Tint the whole scene to the time of day - a flat wash over the
+        // finished frame, so it stays in screen space
         this.renderTimeOfDayTint();
     }
     
