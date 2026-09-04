@@ -7,7 +7,7 @@ and hit the revenue target before 5pm without driving anyone over the edge.
 ## Play it online
 
 The game is live at <https://superboss.jackmertens.com>, redeployed from
-`main` on every push. `DEPLOY.md` covers the Cloudflare Pages setup.
+`main` on every push. `DEPLOY.md` covers the Cloudflare setup.
 
 ## Download a build
 

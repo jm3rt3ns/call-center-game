@@ -1,70 +1,34 @@
-# Deploying to Cloudflare Pages
+# Deploying to Cloudflare
 
-The game is served at <https://superboss.jackmertens.com> from a Cloudflare
-Pages project. `.github/workflows/deploy.yml` uploads a fresh build on every
-push to `main`, so once the setup below is done there is nothing to run by
-hand.
+The game is served at <https://superboss.jackmertens.com> by a Cloudflare
+Worker with static assets, built straight from this repo by **Workers Builds**
+on every push to `main`.
 
-The blog on the root domain (`jackmertens.com`) is a separate Pages project and
-is untouched by any of this - a subdomain is its own custom domain and its own
-DNS record.
+The blog on the root domain (`jackmertens.com`) is a separate project and is
+untouched by any of this - a subdomain is its own custom domain and its own DNS
+record.
 
-## One-time setup
+## Build and deploy commands
 
-### 1. Create the Pages project
+In the Cloudflare dashboard, when you connect this repo (**Workers & Pages ->
+Create -> Import a repository**):
 
-The workflow does a *direct upload*, so the project must exist first and must
-**not** be connected to a Git repository (a Git-connected project rejects
-uploads from CI).
-
-In the Cloudflare dashboard: **Workers & Pages -> Create -> Pages -> Upload
-assets**, name it `superboss`, and upload anything to finish creating it - the
-first real deploy will replace it. Set the production branch to `main` under
-**Settings -> Builds & deployments** if it is not already.
-
-Or from a terminal with [wrangler](https://developers.cloudflare.com/workers/wrangler/):
-
-```
-npx wrangler pages project create superboss --production-branch main
-```
-
-### 2. Create an API token
-
-**My Profile -> API Tokens -> Create Token -> Create Custom Token** with:
-
-| setting | value |
+| field | value |
 |---|---|
-| Permission | Account -> Cloudflare Pages -> Edit |
-| Account resources | Include -> your account |
+| Build command | `bash scripts/build-site.sh` |
+| Deploy command | `npx wrangler deploy` (the default) |
+| Branch | `main` |
 
-Copy the token once - Cloudflare will not show it again.
+The deploy command is the default one - leave it alone. The build command is
+the only thing to fill in: `scripts/build-site.sh` stages `dist/site` with just
+the files the browser needs, which is the directory `wrangler.jsonc` uploads.
 
-Your account ID is on the right-hand side of the **Workers & Pages** overview,
-or in the URL: `dash.cloudflare.com/<account-id>/...`.
-
-### 3. Add the GitHub secrets
-
-In this repo: **Settings -> Secrets and variables -> Actions -> New repository
-secret**.
-
-| secret | value |
-|---|---|
-| `CLOUDFLARE_API_TOKEN` | the token from step 2 |
-| `CLOUDFLARE_ACCOUNT_ID` | your account ID |
-
-### 4. Point the subdomain at the project
-
-Push to `main` (or run the **Deploy** workflow manually) so a production
-deployment exists, then in the Pages project: **Custom domains -> Set up a
-custom domain -> `superboss.jackmertens.com` -> Activate domain**.
-
-Because `jackmertens.com` already uses Cloudflare DNS, Cloudflare adds the
-`superboss` CNAME itself and issues the certificate - usually live within a
-minute or two.
+Leaving the build command blank will *not* work - `dist/site` would not exist
+and the deploy fails with a missing assets directory.
 
 ## What gets deployed
 
-The workflow copies only what the browser needs into `dist/site`:
+`scripts/build-site.sh` copies into `dist/site`:
 
 - `index.html`, `styles.css`, every top-level `*.js`
 - `assets/` (the sprite packs)
@@ -74,24 +38,40 @@ The workflow copies only what the browser needs into `dist/site`:
 It then fails the build if `index.html` references a file that did not make it
 into the upload, so a missing asset never reaches the live site.
 
-## Changing the project or domain
+Everything else - `README.md`, `DEPLOY.md`, `.github/`, `wrangler.jsonc` - stays
+out of the upload.
 
-Both live in `env:` at the top of `.github/workflows/deploy.yml`:
+## Pointing the subdomain at it
 
-```yaml
-env:
-  CLOUDFLARE_PROJECT: superboss
-  SITE_URL: https://superboss.jackmertens.com
+After the first successful deploy: **the Worker -> Settings -> Domains & Routes
+-> Add -> Custom domain -> `superboss.jackmertens.com`**.
+
+Because `jackmertens.com` already uses Cloudflare DNS, Cloudflare adds the
+`superboss` record itself and issues the certificate - usually live within a
+minute or two. Until then the Worker is reachable at its
+`superboss.<your-subdomain>.workers.dev` URL.
+
+## Deploying by hand
+
+```
+npm install -g wrangler   # or use npx
+wrangler login
+bash scripts/build-site.sh
+wrangler deploy
 ```
 
-`SITE_URL` is only used for the run summary; the domain itself is configured in
-the Cloudflare dashboard.
+`wrangler deploy --dry-run` builds and validates without uploading.
+
+## Changing the project name
+
+It is the `name` field in `wrangler.jsonc`. Renaming it creates a *new* Worker
+on the next deploy, so the custom domain has to be moved over to it.
 
 ## Troubleshooting
 
 | symptom | cause |
 |---|---|
-| `Project not found` | Step 1 was skipped, or the name in `CLOUDFLARE_PROJECT` does not match |
-| `Authentication error` / 10000 | Token lacks **Cloudflare Pages: Edit**, or `CLOUDFLARE_ACCOUNT_ID` is wrong |
-| Deploy succeeds but the domain 404s | The custom domain in step 4 is not attached, or the deploy landed on a preview branch instead of `main` |
+| `The directory specified by the "assets.directory" field does not exist` | The build command is blank or failed - it must run `bash scripts/build-site.sh` |
+| Build fails with `index.html references ...` | A file `index.html` links to is missing from the repo |
+| Deploy succeeds but the domain 404s | The custom domain is not attached yet; check the `workers.dev` URL first |
 | Old art after a deploy | Hard-refresh once; `/assets/*` is cached for an hour |
