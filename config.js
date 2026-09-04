@@ -13,6 +13,13 @@ const CONFIG = {
         revenueTarget: 2000,        // Pesos needed to win
         workdayStartHour: 8,        // 8:00 AM
         workdayEndHour: 17,         // 5:00 PM (9 hours total)
+
+        // Global simulation speed. Everything driven by delta time - the
+        // workday clock, employees, the manager, breaks, animations - runs at
+        // this multiple of real time. 1.0 = original pace, 2.0 = double speed.
+        speedMultiplier: 1.2,
+        minSpeedMultiplier: 0.25,   // Clamp bounds, so a bad value can't stall
+        maxSpeedMultiplier: 4,      // or fast-forward the sim into nonsense
     },
 
     // ============================================
@@ -139,6 +146,31 @@ const CONFIG = {
     },
 
     // ============================================
+    // CAMERA
+    // ============================================
+    camera: {
+        // How much closer than the old full-office view. 1 = the original
+        // framing, 1.75 sits between a comfortable 1.5x and a tight 2x.
+        zoom: 1.75,
+        
+        // How hard the camera pulls toward the boss, per second. Higher is
+        // snappier, lower drifts along behind him.
+        smoothing: 4.5,
+        
+        // Screen pixels he can wander from the centre before the camera
+        // bothers to move - keeps small shuffles from sliding the office.
+        deadzoneX: 40,
+        deadzoneY: 24,
+        
+        // Seconds of his movement to lead by, so the view opens up ahead of
+        // him rather than behind
+        lookAheadSeconds: 0.35,
+        
+        // Screen pixels to lift the focus off his feet, framing his body
+        focusOffsetY: -28,
+    },
+
+    // ============================================
     // SPRITE PACKS
     // ============================================
     sprites: {
@@ -215,6 +247,15 @@ const GAME_STATE = {
     WIN: 'win',
     LOSE: 'lose',
 };
+
+// The active simulation speed, clamped to the configured bounds so a stray
+// value from the menu (or a console tweak) can't break the game loop
+function getSpeedMultiplier() {
+    const speed = Number(CONFIG.game.speedMultiplier);
+    if (!isFinite(speed) || speed <= 0) return 1;
+    return Math.min(CONFIG.game.maxSpeedMultiplier,
+                    Math.max(CONFIG.game.minSpeedMultiplier, speed));
+}
 
 // Utility function to get config value
 function getConfig(path) {

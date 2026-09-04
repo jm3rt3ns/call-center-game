@@ -22,6 +22,9 @@ class Game {
         this.manager = null;
         this.employees = [];
         
+        // Camera that frames the boss
+        this.camera = null;
+        
         // Ability states
         this.coffeeDumped = false;
         this.coffeeDumpTimer = 0;
@@ -34,7 +37,9 @@ class Game {
         
         // Timing
         this.lastTime = 0;
-        this.deltaTime = 0;
+        this.deltaTime = 0;     // Simulation delta - real delta x speedMultiplier
+        this.realDeltaTime = 0; // Wall-clock delta for this frame, in ms
+        this.speedMultiplier = getSpeedMultiplier();
         
         // Sound
         this.lastFootstepTime = 0;
@@ -73,7 +78,12 @@ class Game {
         // Create employees
         this.createEmployees();
         
+        // Zoom in on the boss and start the view already on him
+        this.camera = new Camera(this.canvas.width, this.canvas.height);
+        this.camera.snapTo(this.office, this.manager);
+        
         // Reset game state
+        this.speedMultiplier = getSpeedMultiplier();
         this.revenue = 0;
         this.gameTime = 0;
         this.workdayTime = 0;
@@ -118,8 +128,13 @@ class Game {
         if (this.lastTime === 0) {
             this.lastTime = timestamp;
         }
-        this.deltaTime = timestamp - this.lastTime;
+        this.realDeltaTime = timestamp - this.lastTime;
         this.lastTime = timestamp;
+        
+        // Everything downstream - the clock, employees, the manager, sprite
+        // animation - is driven off this one delta, so scaling it here speeds
+        // up or slows down the whole simulation uniformly
+        this.deltaTime = this.realDeltaTime * this.speedMultiplier;
         
         // Cap delta time to prevent huge jumps
         if (this.deltaTime > 100) this.deltaTime = 100;
@@ -135,6 +150,9 @@ class Game {
         
         // Update manager
         this.manager.update(this.deltaTime, this);
+        
+        // Trail the camera after him
+        this.camera.follow(this.office, this.manager, this.deltaTime);
         
         // Update employees and check for collisions
         this.updateEmployees();
@@ -335,6 +353,10 @@ class Game {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
+        // Everything in the office is drawn through the camera, so it all
+        // zooms and pans together
+        if (this.camera) this.camera.apply(this.ctx);
+        
         // Render office
         this.office.render(this.ctx);
         
@@ -350,7 +372,10 @@ class Game {
             this.renderCollisionPrompt();
         }
         
-        // Tint the whole scene to the time of day
+        if (this.camera) this.camera.release(this.ctx);
+        
+        // Tint the whole scene to the time of day - a flat wash over the
+        // finished frame, so it stays in screen space
         this.renderTimeOfDayTint();
     }
     
@@ -470,7 +495,9 @@ class Game {
     
     getRemainingRealTime() {
         const totalSeconds = CONFIG.game.gameDurationMinutes * 60;
-        const remaining = Math.max(0, totalSeconds - this.gameTime);
+        // gameTime runs at speedMultiplier x real time, so the workday's
+        // remaining seconds convert back to wall-clock seconds
+        const remaining = Math.max(0, totalSeconds - this.gameTime) / this.speedMultiplier;
         const minutes = Math.floor(remaining / 60);
         const seconds = Math.floor(remaining % 60);
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;

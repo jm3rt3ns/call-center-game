@@ -21,6 +21,7 @@ const canvas = document.getElementById('game-canvas');
 const configEmployees = document.getElementById('config-employees');
 const configDuration = document.getElementById('config-duration');
 const configTarget = document.getElementById('config-target');
+const configSpeed = document.getElementById('config-speed');
 
 // HUD elements
 const hudRevenue = document.getElementById('hud-revenue');
@@ -115,6 +116,7 @@ async function startGame() {
     CONFIG.game.numberOfEmployees = parseInt(configEmployees.value) || 10;
     CONFIG.game.gameDurationMinutes = parseInt(configDuration.value) || 5;
     CONFIG.game.revenueTarget = parseInt(configTarget.value) || 500;
+    CONFIG.game.speedMultiplier = parseFloat(configSpeed.value) || CONFIG.game.speedMultiplier;
     
     // Update HUD target display
     hudTarget.textContent = CONFIG.game.revenueTarget;
@@ -482,6 +484,9 @@ window.addEventListener('load', () => {
     configEmployees.value = CONFIG.game.numberOfEmployees;
     configDuration.value = CONFIG.game.gameDurationMinutes;
     configTarget.value = CONFIG.game.revenueTarget;
+    configSpeed.value = CONFIG.game.speedMultiplier;
+    configSpeed.min = CONFIG.game.minSpeedMultiplier;
+    configSpeed.max = CONFIG.game.maxSpeedMultiplier;
     
     // Show main menu
     showScreen('main-menu');
