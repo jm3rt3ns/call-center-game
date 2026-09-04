@@ -316,12 +316,17 @@ function drawPreview() {
         return;
     }
 
+    // The office only fills the rectangle its own scene covers, so anything
+    // left from a bigger level has to be cleared first.
+    previewCtx.clearRect(0, 0, els.preview.width, els.preview.height);
+
     // Match the backing store to the size it is displayed at, so the preview
     // is as crisp as the game.
     const shown = Math.max(360, Math.floor(els.preview.parentElement.clientWidth - 32));
     if (els.preview.width !== shown) {
         els.preview.width = shown;
         els.preview.height = Math.round(shown * 0.6);
+        previewCtx.clearRect(0, 0, els.preview.width, els.preview.height);
     }
 
     // Office reads the canvas size off CONFIG when it fits the view.

@@ -161,6 +161,9 @@ class Office {
         const drawnHeight = span * (this.tileHeight / 2) + this.wallHeight();
         this.offsetX = (this.width - drawnWidth) / 2 + this.rows * (this.tileWidth / 2);
         this.offsetY = (this.height - drawnHeight) / 2 + this.wallHeight();
+        
+        // sceneBounds() is derived from these, so it has to be recomputed
+        this._sceneBounds = null;
     }
 
     wallHeightFor(scale) {
@@ -330,8 +333,8 @@ class Office {
         if (this._sceneBounds) return this._sceneBounds;
         
         const halfTile = this.tileWidth / 2;
-        const wallHeight = 25;   // matches drawIsometricWall
-        const headroom = 48;     // room for sprites standing on the back row
+        const wallHeight = this.wallHeight();   // matches drawIsometricWall
+        const headroom = 48 * this.scale;       // sprites standing on the back row
         
         const corners = [
             this.toIso(0, 0),

@@ -53,7 +53,7 @@ counts down.
 | `levels.js` | the levels themselves, as flat map text, and the code that reads it |
 | `sprites.js` | sprite-pack loading and animation playback |
 | `entities.js` | the manager and the employees, their AI and their drawing |
-| `office.js` | floor plan, isometric projection, A* pathfinding, environment art |
+| `office.js` | turns a level into the floor plan, isometric projection, A* pathfinding, environment art |
 | `camera.js` | the zoomed view that follows the boss around the office |
 | `game.js` | game loop, win/lose rules, the render pass |
 | `main.js` | menus, HUD, input, end screens |
@@ -90,8 +90,11 @@ They live in `levels.js`:
 | `M` | where the manager starts (one per level) |
 
 Rows do not have to be the same length - short ones are padded with floor - and
-the level can be any size. The view scales itself so the whole floor plan fits
-on screen.
+the level can be any size: the office scales the floor plan to fit the canvas,
+and the camera then zooms in on the boss from there (`CONFIG.camera` sets the
+zoom, how hard it pulls after him, and how far ahead of him it looks). The
+editor's preview shows the unzoomed framing, so you always see the whole
+level.
 
 ### The level editor
 
@@ -106,10 +109,6 @@ manager can never walk to.
 says `Level: Custom` until you click *use the built-in level*. To keep a level
 for good, copy the map text into a new entry in `LEVELS` in `levels.js` - it
 shows up in the editor's level list on the next reload.
-
-The view is a zoom on the boss rather than the whole floor plan - see
-`CONFIG.camera` for the zoom level, how hard the camera pulls after him, and
-how far ahead of him it looks.
 
 Characters draw from sprite packs when one is assigned to them in
 `CONFIG.sprites.actors`, and fall back to procedural pixel drawing otherwise.
