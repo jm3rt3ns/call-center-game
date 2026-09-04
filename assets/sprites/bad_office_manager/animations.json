@@ -1,0 +1,114 @@
+{
+ "canvas": [
+  48,
+  48
+ ],
+ "origin_hint": "bottom-center, feet at y=45",
+ "animations": {
+  "01_idle": {
+   "frames": 6,
+   "frame_ms": 150,
+   "loop": true,
+   "sheet": "01_idle/01_idle_sheet.png",
+   "fps": 6.7
+  },
+  "02_walk": {
+   "frames": 8,
+   "frame_ms": 110,
+   "loop": true,
+   "sheet": "02_walk/02_walk_sheet.png",
+   "fps": 9.1
+  },
+  "03_run": {
+   "frames": 8,
+   "frame_ms": 70,
+   "loop": true,
+   "sheet": "03_run/03_run_sheet.png",
+   "fps": 14.3
+  },
+  "04_talk_gesture": {
+   "frames": 8,
+   "frame_ms": 140,
+   "loop": true,
+   "sheet": "04_talk_gesture/04_talk_gesture_sheet.png",
+   "fps": 7.1
+  },
+  "05_angry_yell": {
+   "frames": 6,
+   "frame_ms": 120,
+   "loop": true,
+   "sheet": "05_angry_yell/05_angry_yell_sheet.png",
+   "fps": 8.3
+  },
+  "06_slam_desk": {
+   "frames": 6,
+   "frame_ms": 110,
+   "loop": false,
+   "sheet": "06_slam_desk/06_slam_desk_sheet.png",
+   "fps": 9.1
+  },
+  "07_arms_crossed": {
+   "frames": 6,
+   "frame_ms": 160,
+   "loop": true,
+   "sheet": "07_arms_crossed/07_arms_crossed_sheet.png",
+   "fps": 6.2
+  },
+  "08_walk_coffee": {
+   "frames": 8,
+   "frame_ms": 110,
+   "loop": true,
+   "sheet": "08_walk_coffee/08_walk_coffee_sheet.png",
+   "fps": 9.1
+  },
+  "09_point_fire": {
+   "frames": 6,
+   "frame_ms": 100,
+   "loop": false,
+   "sheet": "09_point_fire/09_point_fire_sheet.png",
+   "fps": 10.0
+  },
+  "10_hit_react": {
+   "frames": 4,
+   "frame_ms": 100,
+   "loop": false,
+   "sheet": "10_hit_react/10_hit_react_sheet.png",
+   "fps": 10.0
+  },
+  "11_fall": {
+   "frames": 5,
+   "frame_ms": 110,
+   "loop": false,
+   "sheet": "11_fall/11_fall_sheet.png",
+   "fps": 9.1
+  },
+  "12_get_up": {
+   "frames": 4,
+   "frame_ms": 120,
+   "loop": false,
+   "sheet": "12_get_up/12_get_up_sheet.png",
+   "fps": 8.3
+  },
+  "13_victory_smug": {
+   "frames": 6,
+   "frame_ms": 130,
+   "loop": true,
+   "sheet": "13_victory_smug/13_victory_smug_sheet.png",
+   "fps": 7.7
+  },
+  "14_interact_paperwork": {
+   "frames": 6,
+   "frame_ms": 160,
+   "loop": false,
+   "sheet": "14_interact_paperwork/14_interact_paperwork_sheet.png",
+   "fps": 6.2
+  },
+  "15_die": {
+   "frames": 6,
+   "frame_ms": 130,
+   "loop": false,
+   "sheet": "15_die/15_die_sheet.png",
+   "fps": 7.7
+  }
+ }
+}

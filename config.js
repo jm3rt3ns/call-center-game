@@ -143,6 +143,38 @@ const CONFIG = {
     },
 
     // ============================================
+    // SPRITE PACKS
+    // ============================================
+    sprites: {
+        enabled: true,              // false = always use the procedural pixel drawing
+        basePath: 'assets/sprites/', // where packs.json lives
+        
+        // Which pack each actor type draws from (pack ids come from packs.json).
+        // null falls back to the procedural pixel art in entities.js.
+        actors: {
+            manager: 'bad_office_manager',
+            employee: null,
+        },
+        
+        // On-screen size multiplier per actor, applied to the pack's frame size
+        scale: {
+            manager: 1.1,
+            employee: 1.0,
+        },
+        
+        // The manager steps off at a walk and breaks into a run once he has
+        // been moving this long (ms). Movement speed itself is unchanged.
+        walkToRunMs: 260,
+        
+        // ...and drops back to a walk whenever something (a wall, a desk)
+        // holds him below this fraction of his full speed
+        runThreshold: 0.6,
+        
+        // How long one-shot reaction animations hold before returning to idle (ms)
+        reactionHoldMs: 250,
+    },
+
+    // ============================================
     // UI SETTINGS
     // ============================================
     ui: {

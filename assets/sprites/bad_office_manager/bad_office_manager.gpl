@@ -1,0 +1,32 @@
+GIMP Palette
+Name: Bad Office Manager
+Columns: 8
+#
+229 181 153 skin
+216 149  92 skin_d
+192 139  74 hair
+150 105  55 hair_d
+185 192 224 shirt
+122 136 181 shirt_d
+229 229 234 white
+124  58  61 susp
+ 90  42  46 susp_d
+196 150  70 tie
+150 110  50 tie_d
+ 58  68  83 pants
+ 35  43  58 pants_d
+ 34  34  34 belt
+196 150  70 buckle
+ 20  24  31 shoe
+ 58  68  83 shoe_h
+ 28  32  40 glass
+200 215 235 lens
+ 20  20  22 black
+229 229 234 mug
+150 150 160 mug_d
+240 240 240 paper
+ 90  62  40 desk
+ 60  40  25 desk_d
+ 28  32  40 line
+200  60  50 red
+ 80  50  30 coffee

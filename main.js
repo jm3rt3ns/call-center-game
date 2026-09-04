@@ -35,6 +35,11 @@ const employeeList = document.getElementById('employee-list');
 // SCREEN MANAGEMENT
 // ============================================
 function showScreen(screenId) {
+    // Nothing outside the end screens should keep an animation running
+    if (screenId !== 'win-screen' && screenId !== 'lose-screen') {
+        stopEndAnimation();
+    }
+    
     // Hide all screens
     mainMenu.classList.add('hidden');
     howToPlayScreen.classList.add('hidden');
@@ -55,7 +60,19 @@ document.getElementById('back-to-menu').addEventListener('click', () => showScre
 document.getElementById('win-menu').addEventListener('click', () => showScreen('main-menu'));
 document.getElementById('lose-menu').addEventListener('click', () => showScreen('main-menu'));
 
-function startGame() {
+async function startGame() {
+    // Load sprite packs once, before the first game is built - entities read
+    // the library in their constructors
+    if (!spriteLibrary.ready) {
+        const startButton = document.getElementById('start-game');
+        const originalLabel = startButton.textContent;
+        startButton.disabled = true;
+        startButton.textContent = 'Loading sprites...';
+        await spriteLibrary.loadAll(CONFIG.sprites.basePath);
+        startButton.disabled = false;
+        startButton.textContent = originalLabel;
+    }
+    
     // Initialize sound manager
     if (typeof soundManager !== 'undefined') {
         soundManager.init();
@@ -75,8 +92,8 @@ function startGame() {
     CONFIG.office.canvasWidth = window.innerWidth - 250;
     CONFIG.office.canvasHeight = window.innerHeight - 90;
     
-    // Initialize game with 3D mode enabled
-    game = new Game(canvas, true);
+    // Initialize the 2D pixel-art game
+    game = new Game(canvas);
     game.init();
     
     // Show game screen
@@ -256,9 +273,59 @@ function updateEmployeeCards() {
 // ============================================
 // END SCREENS
 // ============================================
+let endAnimationFrameId = null;
+
+/**
+ * Play one of the manager's sprite roles, blown up, inside an end screen.
+ * Does nothing when no sprite pack is loaded - the caller's emoji stands in.
+ */
+function playEndAnimation(container, role, scale = 4) {
+    stopEndAnimation();
+    
+    const pack = spriteLibrary.forActor('manager');
+    if (!pack) return false;
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = pack.frameWidth * scale;
+    canvas.height = pack.frameHeight * scale;
+    container.appendChild(canvas);
+    
+    const ctx = canvas.getContext('2d');
+    const animator = new SpriteAnimator(pack, scale);
+    animator.play(role, { force: true });
+    
+    let lastTime = 0;
+    const step = (timestamp) => {
+        const delta = lastTime ? timestamp - lastTime : 16;
+        lastTime = timestamp;
+        
+        animator.update(delta);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        animator.draw(ctx, canvas.width / 2, pack.origin.y * scale);
+        
+        endAnimationFrameId = requestAnimationFrame(step);
+    };
+    endAnimationFrameId = requestAnimationFrame(step);
+    return true;
+}
+
+function stopEndAnimation() {
+    if (endAnimationFrameId) {
+        cancelAnimationFrame(endAnimationFrameId);
+        endAnimationFrameId = null;
+    }
+}
+
 function showWinScreen() {
     cancelAnimationFrame(animationFrameId);
     showScreen('win-screen');
+    
+    // The manager, insufferably pleased with himself
+    const winAnimation = document.getElementById('win-animation');
+    winAnimation.innerHTML = '';
+    if (!playEndAnimation(winAnimation, SPRITE_ROLE.CELEBRATE)) {
+        winAnimation.textContent = '\u{1F389}';
+    }
     
     const winStats = document.getElementById('win-stats');
     winStats.innerHTML = `
@@ -278,9 +345,21 @@ function showLoseScreen() {
     
     document.getElementById('lose-reason').textContent = game.gameOverReason;
     
-    // Animate takedown if employee went insane
+    // Show the manager going down - taken out by an employee, or just beaten
+    // by the numbers
     const loseAnimation = document.getElementById('lose-animation');
-    if (game.insaneEmployee) {
+    loseAnimation.innerHTML = '';
+    loseAnimation.classList.remove('with-sprite');
+    
+    const role = game.insaneEmployee ? SPRITE_ROLE.DEAD : SPRITE_ROLE.FALL;
+    if (playEndAnimation(loseAnimation, role)) {
+        loseAnimation.classList.add('with-sprite');
+        if (game.insaneEmployee) {
+            const caption = document.createElement('div');
+            caption.textContent = `Taken out by ${game.insaneEmployee.name}`;
+            loseAnimation.appendChild(caption);
+        }
+    } else if (game.insaneEmployee) {
         loseAnimation.innerHTML = `
             <div style="text-align: center;">
                 <div style="font-size: 6rem; animation: shake 0.3s infinite;">😱</div>

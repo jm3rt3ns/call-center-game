@@ -34,6 +34,7 @@ class Employee {
         // Needs
         this.needsCoffee = false;
         this.needsBathroom = false;
+        this.carryingCoffee = false;  // walking back from the coffee machine
         
         // Pathfinding
         this.path = [];
@@ -44,6 +45,13 @@ class Employee {
         // Visual
         this.size = CONFIG.employee.size;
         this.color = CONFIG.employee.colors.working;
+        
+        // Sprite pack playback. Falls back to the procedural pixel drawing
+        // below when no pack is assigned to the 'employee' actor.
+        this.animator = new SpriteAnimator(
+            spriteLibrary.forActor('employee'),
+            (CONFIG.sprites && CONFIG.sprites.scale.employee) || 1
+        );
         
         // Stats tracking
         this.callsMade = 0;
@@ -70,6 +78,8 @@ class Employee {
     }
     
     update(deltaTime, game) {
+        const previousX = this.x;
+        
         // Update timers based on state
         this.updateTimers(deltaTime, game);
         
@@ -78,6 +88,9 @@ class Employee {
         
         // Update visual appearance
         this.updateAppearance(game);
+        
+        // Update sprite animation
+        this.updateAnimation(deltaTime, this.x - previousX);
         
         // Clamp stats
         this.sanity = Math.max(CONFIG.employee.minSanity, Math.min(CONFIG.employee.maxSanity, this.sanity));
@@ -198,6 +211,7 @@ class Employee {
         let targetX, targetY;
         
         if (destination === 'coffee') {
+            this.carryingCoffee = false;
             targetX = game.office.coffeeStation.x;
             targetY = game.office.coffeeStation.y;
             this.state = EMPLOYEE_STATE.WALKING_TO_COFFEE;
@@ -264,6 +278,7 @@ class Employee {
             this.y = game.office.bathroomStall.y;
         } else if (this.state === EMPLOYEE_STATE.WALKING_BACK) {
             this.state = EMPLOYEE_STATE.WORKING;
+            this.carryingCoffee = false;
             this.x = this.desk.x;
             this.y = this.desk.y;
         }
@@ -272,6 +287,7 @@ class Employee {
     finishBreak(game) {
         if (this.state === EMPLOYEE_STATE.ON_COFFEE_BREAK) {
             this.needsCoffee = false;
+            this.carryingCoffee = true;
             this.coffeeNeedTimer = this.calculateCoffeeNeedTime();
         } else if (this.state === EMPLOYEE_STATE.ON_BATHROOM_BREAK) {
             this.needsBathroom = false;
@@ -316,6 +332,7 @@ class Employee {
         this.forcedWorkTimer = CONFIG.employee.forcedReturnDuration;
         this.sanity += CONFIG.employee.forcedReturnSanityIncrease;
         this.productivity += CONFIG.employee.forcedReturnProductivityBoost;
+        this.carryingCoffee = false;
         
         // Teleport back to desk (for simplicity)
         this.x = this.desk.x;
@@ -334,6 +351,38 @@ class Employee {
         return this.state === EMPLOYEE_STATE.WALKING_TO_COFFEE ||
                this.state === EMPLOYEE_STATE.WALKING_TO_BATHROOM ||
                this.state === EMPLOYEE_STATE.WALKING_BACK;
+    }
+    
+    // Map the employee's state onto a sprite role and advance playback
+    updateAnimation(deltaTime, dx) {
+        if (!this.animator.available) return;
+        
+        if (dx !== 0) this.animator.setFacing(dx);
+        
+        let role = SPRITE_ROLE.IDLE;
+        switch (this.state) {
+            case EMPLOYEE_STATE.WORKING:
+            case EMPLOYEE_STATE.FORCED_WORKING:
+                role = SPRITE_ROLE.WORK;
+                break;
+            case EMPLOYEE_STATE.FEARFUL:
+                role = SPRITE_ROLE.HURT;
+                break;
+            case EMPLOYEE_STATE.WALKING_TO_COFFEE:
+            case EMPLOYEE_STATE.WALKING_TO_BATHROOM:
+                role = SPRITE_ROLE.WALK;
+                break;
+            case EMPLOYEE_STATE.WALKING_BACK:
+                role = this.carryingCoffee ? SPRITE_ROLE.CARRY : SPRITE_ROLE.WALK;
+                break;
+            case EMPLOYEE_STATE.ON_COFFEE_BREAK:
+            case EMPLOYEE_STATE.ON_BATHROOM_BREAK:
+                role = SPRITE_ROLE.WAIT;
+                break;
+        }
+        
+        this.animator.play(role);
+        this.animator.update(deltaTime);
     }
     
     updateAppearance(game) {
@@ -371,13 +420,17 @@ class Employee {
             screenY = screenPos.y;
         }
         
-        // Draw pixel art employee
-        this.drawPixelEmployee(ctx, screenX, screenY);
+        // Draw the sprite when a pack is loaded, otherwise the procedural art
+        const usedSprite = this.animator.draw(ctx, screenX, screenY);
+        if (!usedSprite) {
+            this.drawPixelEmployee(ctx, screenX, screenY);
+        }
         
         // Draw sanity indicator (small bar above)
         const barWidth = 20;
         const barHeight = 3;
-        const barY = screenY - 28;
+        const headroom = usedSprite ? this.animator.drawnHeightAboveGround + 6 : 28;
+        const barY = screenY - headroom;
         
         // Background
         ctx.fillStyle = '#222';
@@ -521,10 +574,22 @@ class Manager {
         this.moveDown = false;
         this.moveLeft = false;
         this.moveRight = false;
+        
+        // Sprite pack playback. Falls back to the procedural pixel drawing
+        // below when no pack is assigned to the 'manager' actor.
+        this.animator = new SpriteAnimator(
+            spriteLibrary.forActor('manager'),
+            (CONFIG.sprites && CONFIG.sprites.scale.manager) || 1
+        );
+        this.moving = false;
+        this.movingMs = 0;      // ms spent moving, for the walk -> run ramp
+        this.reactionHold = 0;  // ms a finished reaction pose is held for
     }
     
     update(deltaTime, game) {
         const seconds = deltaTime / 1000;
+        const previousX = this.x;
+        const previousY = this.y;
         
         // Calculate velocity based on input
         this.velocityX = 0;
@@ -557,6 +622,56 @@ class Manager {
         // Keep within bounds
         this.x = Math.max(this.size, Math.min(game.office.width - this.size, this.x));
         this.y = Math.max(this.size, Math.min(game.office.height - this.size, this.y));
+        
+        this.updateAnimation(deltaTime, seconds, this.x - previousX, this.y - previousY);
+    }
+    
+    /**
+     * Pick a locomotion animation. He steps off at a walk and breaks into a run
+     * once he has been moving a moment, and drops back to a walk whenever a
+     * wall or a desk holds him below full speed - measured from how far he
+     * actually travelled this frame, not from the input. Reactions triggered by
+     * playReaction() win until they end.
+     */
+    updateAnimation(deltaTime, seconds, dx, dy) {
+        if (!this.animator.available) {
+            this.moving = dx !== 0 || dy !== 0;
+            return;
+        }
+        
+        const travelled = Math.sqrt(dx * dx + dy * dy);
+        const fullTravel = this.speed * seconds;
+        const speedFraction = fullTravel > 0 ? travelled / fullTravel : 0;
+        
+        this.moving = travelled > 0.01;
+        this.movingMs = this.moving ? this.movingMs + deltaTime : 0;
+        
+        if (dx !== 0) this.animator.setFacing(dx);
+        
+        if (this.reactionHold > 0) {
+            this.reactionHold -= deltaTime;
+        } else if (!this.animator.busy) {
+            if (!this.moving) {
+                this.animator.play(SPRITE_ROLE.IDLE);
+            } else if (this.movingMs >= CONFIG.sprites.walkToRunMs &&
+                       speedFraction >= CONFIG.sprites.runThreshold) {
+                this.animator.play(SPRITE_ROLE.RUN);
+            } else {
+                this.animator.play(SPRITE_ROLE.WALK);
+            }
+        }
+        
+        this.animator.update(deltaTime);
+    }
+    
+    // Play a one-shot reaction (yell, desk slam, pointed finger) and hold the
+    // final pose briefly so it reads before locomotion takes over again.
+    playReaction(role) {
+        if (!this.animator.available) return;
+        this.animator.playOnce(role, () => {
+            this.reactionHold = CONFIG.sprites.reactionHoldMs;
+            this.movingMs = 0;
+        });
     }
     
     checkCollisionWithEmployee(employee) {
@@ -580,15 +695,60 @@ class Manager {
             screenY = screenPos.y;
         }
         
-        // Draw pixel art manager
-        this.drawPixelManager(ctx, screenX, screenY);
+        // Fear aura on the floor, flattened to match the isometric tiles
+        this.drawProximityAura(ctx, screenX, screenY);
         
-        // Draw proximity circle (faint, in screen space)
+        // Draw the sprite when a pack is loaded, otherwise the procedural art
+        if (this.animator.available) {
+            this.drawContactShadow(ctx, screenX, screenY);
+            this.animator.draw(ctx, screenX, screenY);
+            this.drawMarker(ctx, screenX, screenY);
+        } else {
+            this.drawPixelManager(ctx, screenX, screenY);
+        }
+    }
+    
+    drawProximityAura(ctx, x, y) {
+        const radius = CONFIG.employee.managerProximityRadius * 0.7;
+        const flatten = CONFIG.office.tileHeight / CONFIG.office.tileWidth;
+        const pulse = Math.sin(Date.now() / 400) * 0.05 + 0.15;
+        
+        ctx.save();
         ctx.beginPath();
-        ctx.arc(screenX, screenY - 10, CONFIG.employee.managerProximityRadius * 0.7, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(239, 68, 68, 0.15)';
+        ctx.ellipse(x, y, radius, radius * flatten, 0, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(239, 68, 68, ${pulse * 0.35})`;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(239, 68, 68, ${pulse + 0.1})`;
         ctx.lineWidth = 2;
         ctx.stroke();
+        ctx.restore();
+    }
+    
+    // Extras the sprite sheet doesn't carry, drawn under the character
+    drawContactShadow(ctx, x, y) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 11, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    // ...and over it, so the player can always pick themselves out of the crowd.
+    // A chunky pixel chevron rather than an emoji, which would blur next to
+    // the sprite art.
+    drawMarker(ctx, x, y) {
+        const bob = Math.round(Math.sin(Date.now() / 300) * 2);
+        const top = Math.round(y - this.animator.drawnHeightAboveGround - 12) + bob;
+        const left = Math.round(x);
+        
+        // 7px wide chevron pointing down, two pixels tall per step
+        ctx.fillStyle = '#ef4444';
+        for (let step = 0; step < 4; step++) {
+            const halfWidth = 3 - step;
+            ctx.fillRect(left - halfWidth, top + step * 2, halfWidth * 2 + 1, 2);
+        }
+        // Highlight along the top edge
+        ctx.fillStyle = '#fca5a5';
+        ctx.fillRect(left - 3, top, 7, 1);
     }
     
     drawPixelManager(ctx, x, y) {
