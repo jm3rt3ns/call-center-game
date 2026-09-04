@@ -4,6 +4,11 @@ A 2D isometric pixel-art management sim that runs in the browser with no build
 step. You are the manager: pace the floor, block the coffee and the bathroom,
 and hit the revenue target before 5pm without driving anyone over the edge.
 
+## Play it online
+
+The game is live at <https://superboss.jackmertens.com>, redeployed from
+`main` on every push. `DEPLOY.md` covers the Cloudflare Pages setup.
+
 ## Download a build
 
 Every merge to `main` publishes a release with a zip of the game. Grab the
