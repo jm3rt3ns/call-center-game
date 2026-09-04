@@ -32,6 +32,10 @@ const coffeeStatus = document.getElementById('coffee-status');
 const bathroomStatus = document.getElementById('bathroom-status');
 const employeeList = document.getElementById('employee-list');
 
+// Level line on the main menu
+const activeLevelName = document.getElementById('active-level-name');
+const useBuiltInLevel = document.getElementById('use-built-in-level');
+
 // ============================================
 // SCREEN MANAGEMENT
 // ============================================
@@ -50,7 +54,34 @@ function showScreen(screenId) {
     
     // Show requested screen
     document.getElementById(screenId).classList.remove('hidden');
+    
+    if (screenId === 'main-menu') showActiveLevel();
 }
+
+// ============================================
+// LEVEL
+// ============================================
+
+/**
+ * The menu says which level will be played, and offers a way back to the
+ * built-in one when the editor has left a playtest level behind.
+ */
+function showActiveLevel() {
+    const level = getActiveLevel();
+    activeLevelName.textContent = level.name;
+    useBuiltInLevel.classList.toggle('hidden', level.id !== 'custom');
+}
+
+useBuiltInLevel.addEventListener('click', () => {
+    try {
+        window.localStorage.removeItem(CUSTOM_LEVEL_STORAGE_KEY);
+    } catch (err) {
+        // Nothing stored means nothing to clear.
+    }
+    showActiveLevel();
+});
+
+showActiveLevel();
 
 // ============================================
 // MENU HANDLERS

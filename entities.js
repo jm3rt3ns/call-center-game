@@ -420,6 +420,15 @@ class Employee {
             screenY = screenPos.y;
         }
         
+        // Characters are drawn at fixed pixel sizes, so match whatever scale the
+        // office fitted the level to
+        const scale = (game && game.office) ? game.office.scale : 1;
+        ctx.save();
+        ctx.translate(screenX, screenY);
+        ctx.scale(scale, scale);
+        screenX = 0;
+        screenY = 0;
+        
         // Draw the sprite when a pack is loaded, otherwise the procedural art
         const usedSprite = this.animator.draw(ctx, screenX, screenY);
         if (!usedSprite) {
@@ -446,6 +455,8 @@ class Employee {
         ctx.strokeStyle = '#444';
         ctx.lineWidth = 1;
         ctx.strokeRect(screenX - barWidth / 2, barY, barWidth, barHeight);
+        
+        ctx.restore();
     }
     
     drawPixelEmployee(ctx, x, y) {
@@ -619,9 +630,9 @@ class Manager {
             this.y = newY;
         }
         
-        // Keep within bounds
-        this.x = Math.max(this.size, Math.min(game.office.width - this.size, this.x));
-        this.y = Math.max(this.size, Math.min(game.office.height - this.size, this.y));
+        // Keep within the level, which is its own size independent of the canvas
+        this.x = Math.max(this.size, Math.min(game.office.worldWidth - this.size, this.x));
+        this.y = Math.max(this.size, Math.min(game.office.worldHeight - this.size, this.y));
         
         this.updateAnimation(deltaTime, seconds, this.x - previousX, this.y - previousY);
     }
@@ -695,17 +706,26 @@ class Manager {
             screenY = screenPos.y;
         }
         
+        // Characters are drawn at fixed pixel sizes, so match whatever scale the
+        // office fitted the level to
+        const scale = (game && game.office) ? game.office.scale : 1;
+        ctx.save();
+        ctx.translate(screenX, screenY);
+        ctx.scale(scale, scale);
+        
         // Fear aura on the floor, flattened to match the isometric tiles
-        this.drawProximityAura(ctx, screenX, screenY);
+        this.drawProximityAura(ctx, 0, 0);
         
         // Draw the sprite when a pack is loaded, otherwise the procedural art
         if (this.animator.available) {
-            this.drawContactShadow(ctx, screenX, screenY);
-            this.animator.draw(ctx, screenX, screenY);
-            this.drawMarker(ctx, screenX, screenY);
+            this.drawContactShadow(ctx, 0, 0);
+            this.animator.draw(ctx, 0, 0);
+            this.drawMarker(ctx, 0, 0);
         } else {
-            this.drawPixelManager(ctx, screenX, screenY);
+            this.drawPixelManager(ctx, 0, 0);
         }
+        
+        ctx.restore();
     }
     
     drawProximityAura(ctx, x, y) {

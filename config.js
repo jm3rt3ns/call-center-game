@@ -123,7 +123,8 @@ const CONFIG = {
         // Grid settings for pathfinding
         gridSize: 20,               // Size of each grid cell
         
-        // Isometric settings
+        // Isometric settings. The office shrinks these to fit a large level
+        // on screen, so they are the biggest a tile is ever drawn.
         isometric: true,            // Enable isometric view
         tileWidth: 40,              // Width of isometric tile
         tileHeight: 20,             // Height of isometric tile
@@ -140,13 +141,8 @@ const CONFIG = {
             bathroomStall: '#1a3a5a',
         },
         
-        // Room positions (will be calculated based on layout)
-        // These are approximate centers for navigation
-        rooms: {
-            workspace: { x: 450, y: 350 },
-            breakRoom: { x: 150, y: 100 },
-            bathroom: { x: 440, y: 100 },
-        }
+        // The floor plan itself - walls, desks, rooms and where the props sit -
+        // is a level, not a setting. See levels.js and editor.html.
     },
 
     // ============================================

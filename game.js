@@ -72,8 +72,8 @@ class Game {
         // Create office
         this.office = new Office();
         
-        // Create manager in center of workspace
-        this.manager = new Manager(450, 400);
+        // Drop the manager on the level's spawn tile
+        this.manager = new Manager(this.office.managerSpawn.x, this.office.managerSpawn.y);
         
         // Create employees
         this.createEmployees();

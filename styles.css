@@ -382,3 +382,28 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.5);
 }
+
+/* Level line on the main menu */
+#level-line {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    opacity: 0.85;
+}
+
+.link-button {
+    background: none;
+    border: none;
+    color: #64d2ff;
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+}
+
+a.menu-button {
+    display: inline-block;
+    text-decoration: none;
+}
