@@ -4,7 +4,14 @@ A 2D isometric pixel-art management sim that runs in the browser with no build
 step. You are the manager: pace the floor, block the coffee and the bathroom,
 and hit the revenue target before 5pm without driving anyone over the edge.
 
-## Running it
+## Download a build
+
+Every merge to `main` publishes a release with a zip of the game. Grab the
+newest one from the [Releases page](../../releases), unzip it, and run
+`play.sh` (macOS/Linux) or `play.bat` (Windows) - it serves the folder on
+<http://localhost:8000> and opens it.
+
+## Running it from a checkout
 
 Any static file server works - the sprite packs are fetched over HTTP, so
 opening `index.html` from the filesystem will not load them:
