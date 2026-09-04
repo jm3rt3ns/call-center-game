@@ -1,0 +1,180 @@
+name: Release
+
+# Every push to main cuts a release with a downloadable, ready-to-play zip.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick a version tag
+        id: version
+        run: |
+          set -euo pipefail
+          tag="v$(date -u +%Y.%m.%d).${{ github.run_number }}"
+          # A re-run of the same run would reuse the tag, so keep attempts distinct.
+          if [ "${{ github.run_attempt }}" != "1" ]; then
+            tag="$tag-r${{ github.run_attempt }}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "zip=call-center-chaos-$tag.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Stage the game files
+        run: |
+          set -euo pipefail
+          pkg=dist/call-center-chaos
+          mkdir -p "$pkg"
+          cp index.html styles.css ./*.js README.md "$pkg/"
+          cp -R assets "$pkg/"
+
+      - name: Add the launchers
+        run: |
+          set -euo pipefail
+          pkg=dist/call-center-chaos
+
+          cat > "$pkg/play.sh" <<'SH'
+          #!/usr/bin/env sh
+          # Serves the game on http://localhost:8000 and opens it in a browser.
+          # The sprite packs are fetched over HTTP, so index.html must not be
+          # opened straight off the filesystem.
+          set -eu
+          cd "$(dirname "$0")"
+          PORT="${PORT:-8000}"
+          URL="http://localhost:$PORT"
+          if command -v python3 >/dev/null 2>&1; then
+            PY=python3
+          elif command -v python >/dev/null 2>&1; then
+            PY=python
+          else
+            echo "Python 3 is required to serve the game. Install it, or run any" >&2
+            echo "static file server in this folder and open $URL" >&2
+            exit 1
+          fi
+          echo "Call Center Chaos is running at $URL - press Ctrl+C to stop."
+          (
+            sleep 1
+            if command -v open >/dev/null 2>&1; then open "$URL"
+            elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL"
+            fi
+          ) >/dev/null 2>&1 &
+          exec "$PY" -m http.server "$PORT"
+          SH
+          chmod +x "$pkg/play.sh"
+
+          cat > "$pkg/play.bat" <<'BAT'
+          @echo off
+          rem Serves the game on http://localhost:8000 and opens it in a browser.
+          rem The sprite packs are fetched over HTTP, so index.html must not be
+          rem opened straight off the filesystem.
+          setlocal
+          cd /d "%~dp0"
+          if "%PORT%"=="" set PORT=8000
+          where python >nul 2>&1
+          if errorlevel 1 (
+            echo Python 3 is required to serve the game. Install it from python.org,
+            echo or run any static file server in this folder and open http://localhost:%PORT%
+            exit /b 1
+          )
+          echo Call Center Chaos is running at http://localhost:%PORT% - press Ctrl+C to stop.
+          start "" "http://localhost:%PORT%"
+          python -m http.server %PORT%
+          BAT
+          # cmd.exe is unreliable on LF-only batch files, so ship CRLF.
+          sed -i 's/$/\r/' "$pkg/play.bat"
+
+          cat > "$pkg/HOW_TO_PLAY.txt" <<'TXT'
+          Call Center Chaos
+          =================
+
+          The game needs a static file server - the sprite packs are fetched over
+          HTTP, so double-clicking index.html will load the page without any art.
+
+            macOS / Linux:  ./play.sh
+            Windows:        play.bat
+
+          Either one serves this folder on http://localhost:8000 and opens it.
+          Set PORT to use a different port. Any other static server works too:
+
+            python3 -m http.server 8000
+            npx serve .
+
+          Controls
+          --------
+            WASD / arrow keys   move your manager
+            C                   dump the coffee
+            B                   close the bathroom
+            Space               send a colliding employee back to their desk
+
+          Reach the revenue target before 5pm without driving anyone insane.
+          TXT
+
+      - name: Check the package is complete
+        run: |
+          set -euo pipefail
+          pkg=dist/call-center-chaos
+          missing=0
+          # Every asset index.html pulls in must have made it into the zip.
+          refs=$(grep -oE '(src|href)="[^"]+"' "$pkg/index.html" | sed -E 's/.*"(.*)"/\1/')
+          for ref in $refs; do
+            case "$ref" in
+              http*|//*|data:*|\#*) continue ;;
+            esac
+            if [ ! -f "$pkg/$ref" ]; then
+              echo "::error::index.html references $ref, which is not in the package"
+              missing=1
+            fi
+          done
+          for required in assets/sprites/packs.json play.sh play.bat HOW_TO_PLAY.txt; do
+            if [ ! -e "$pkg/$required" ]; then
+              echo "::error::missing $required"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ]
+
+      - name: Zip it
+        working-directory: dist
+        run: zip -qr "${{ steps.version.outputs.zip }}" call-center-chaos
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          ZIP: ${{ steps.version.outputs.zip }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Playable build of commit \`${GITHUB_SHA:0:7}\`."
+            echo
+            echo "### Play it"
+            echo
+            echo "1. Download \`$ZIP\` below and unzip it."
+            echo "2. Run \`play.sh\` (macOS/Linux) or \`play.bat\` (Windows)."
+            echo "3. The game opens at <http://localhost:8000>."
+            echo
+            echo "The sprite packs load over HTTP, so opening \`index.html\` directly"
+            echo "from the filesystem will not work - the launchers start a small"
+            echo "static server for you. See \`HOW_TO_PLAY.txt\` in the zip."
+          } > notes.md
+          gh release create "$TAG" "dist/$ZIP" \
+            --title "Call Center Chaos $TAG" \
+            --notes-file notes.md \
+            --target "$GITHUB_SHA"
+
+      - name: Keep the zip on the run too
+        uses: actions/upload-artifact@v4
+        with:
+          name: call-center-chaos
+          path: dist/*.zip
