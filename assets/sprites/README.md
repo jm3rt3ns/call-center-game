@@ -8,6 +8,7 @@ the procedural pixel drawing in `entities.js`.
 ```
 assets/sprites/
   packs.json                  registry - lists every pack the game should load
+  manifests.js                generated: packs.json + every pack.json inlined
   bad_office_manager/
     pack.json                 manifest (frame size, origin, animations, roles)
     01_idle/01_idle_sheet.png horizontal strip, one 48x48 cell per frame
@@ -26,8 +27,32 @@ assets/sprites/
    ```js
    CONFIG.sprites.actors.employee = 'grumpy_customer';
    ```
+5. Regenerate the inlined manifests:
+   ```sh
+   python3 scripts/gen-sprite-manifests.py
+   ```
 
 No code changes are needed for a pack that fills in the standard roles.
+
+## manifests.js
+
+`sprites.js` reads `packs.json` and each `pack.json` with `fetch()`, which
+browsers block on `file://` URLs - a downloaded release opened by
+double-clicking `index.html` would fall back to the procedural drawing and lose
+its art. `manifests.js` is the same JSON inlined in a plain `<script>`, and the
+loader falls back to it whenever `fetch` fails; sheets themselves are `<img>`
+loads, which `file://` allows.
+
+It is generated, never hand-edited:
+
+```sh
+python3 scripts/gen-sprite-manifests.py           # rewrite it
+python3 scripts/gen-sprite-manifests.py --check   # fail if it drifted
+```
+
+The release workflow and `scripts/build-site.sh` run `--check`, which also
+verifies that every sheet a manifest names is present in the build - so a
+package that drops sprite files fails instead of shipping.
 
 ## pack.json
 

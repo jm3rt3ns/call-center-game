@@ -103,6 +103,10 @@ async function startGame() {
         await spriteLibrary.loadAll(CONFIG.sprites.basePath);
         startButton.disabled = false;
         startButton.textContent = originalLabel;
+        // A silent fallback reads as "the sprites are missing from the build",
+        // so say so on screen when a pack does not come up.
+        document.getElementById('sprite-warning')
+            .classList.toggle('hidden', spriteLibrary.errors.length === 0);
     }
     
     // Initialize sound manager

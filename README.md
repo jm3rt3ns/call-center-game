@@ -12,19 +12,24 @@ The game is live at <https://superboss.jackmertens.com>, redeployed from
 ## Download a build
 
 Every merge to `main` publishes a release with a zip of the game. Grab the
-newest one from the [Releases page](../../releases), unzip it, and run
-`play.sh` (macOS/Linux) or `play.bat` (Windows) - it serves the folder on
-<http://localhost:8000> and opens it.
+newest one from the [Releases page](../../releases), unzip it, and open
+`index.html`. `play.sh` (macOS/Linux) and `play.bat` (Windows) are there too -
+they serve the folder on <http://localhost:8000> and open it, which is handy if
+your browser locks down local files.
 
 ## Running it from a checkout
 
-Any static file server works - the sprite packs are fetched over HTTP, so
-opening `index.html` from the filesystem will not load them:
+Opening `index.html` works, and any static file server works:
 
 ```
 python3 -m http.server 8000
 # then open http://localhost:8000
 ```
+
+The pack manifests are read with `fetch()` when the page is served and from the
+generated `assets/sprites/manifests.js` when it is not, so the sprite art shows
+up either way. Re-run `python3 scripts/gen-sprite-manifests.py` after editing a
+pack manifest - the release and deploy builds fail if it has drifted.
 
 ## Controls
 

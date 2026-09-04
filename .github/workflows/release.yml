@@ -47,8 +47,8 @@ jobs:
           cat > "$pkg/play.sh" <<'SH'
           #!/usr/bin/env sh
           # Serves the game on http://localhost:8000 and opens it in a browser.
-          # The sprite packs are fetched over HTTP, so index.html must not be
-          # opened straight off the filesystem.
+          # index.html also works opened straight off the filesystem, but a
+          # served copy is the reference setup.
           set -eu
           cd "$(dirname "$0")"
           PORT="${PORT:-8000}"
@@ -76,8 +76,8 @@ jobs:
           cat > "$pkg/play.bat" <<'BAT'
           @echo off
           rem Serves the game on http://localhost:8000 and opens it in a browser.
-          rem The sprite packs are fetched over HTTP, so index.html must not be
-          rem opened straight off the filesystem.
+          rem index.html also works opened straight off the filesystem, but a
+          rem served copy is the reference setup.
           setlocal
           cd /d "%~dp0"
           if "%PORT%"=="" set PORT=8000
@@ -98,8 +98,9 @@ jobs:
           Call Center Chaos
           =================
 
-          The game needs a static file server - the sprite packs are fetched over
-          HTTP, so double-clicking index.html will load the page without any art.
+          Double-click index.html and the game runs, sprite art and all.
+
+          If your browser locks down local files, serve the folder instead:
 
             macOS / Linux:  ./play.sh
             Windows:        play.bat
@@ -138,13 +139,20 @@ jobs:
               fi
             done
           done
-          for required in assets/sprites/packs.json play.sh play.bat HOW_TO_PLAY.txt; do
+          for required in assets/sprites/packs.json assets/sprites/manifests.js \
+                          play.sh play.bat HOW_TO_PLAY.txt; do
             if [ ! -e "$pkg/$required" ]; then
               echo "::error::missing $required"
               missing=1
             fi
           done
           [ "$missing" -eq 0 ]
+
+          # Sprite art is loaded from the pack manifests rather than from the
+          # pages, so the loop above cannot see it. This walks packs.json into
+          # every pack and asserts each sheet made it into the zip, and that
+          # manifests.js (the file:// fallback) still matches the JSON.
+          python3 scripts/gen-sprite-manifests.py --check --root "$pkg"
 
       - name: Zip it
         working-directory: dist
@@ -163,12 +171,12 @@ jobs:
             echo "### Play it"
             echo
             echo "1. Download \`$ZIP\` below and unzip it."
-            echo "2. Run \`play.sh\` (macOS/Linux) or \`play.bat\` (Windows)."
-            echo "3. The game opens at <http://localhost:8000>."
+            echo "2. Open \`index.html\`, or run \`play.sh\` (macOS/Linux) or"
+            echo "   \`play.bat\` (Windows) to serve it at <http://localhost:8000>."
             echo
-            echo "The sprite packs load over HTTP, so opening \`index.html\` directly"
-            echo "from the filesystem will not work - the launchers start a small"
-            echo "static server for you. See \`HOW_TO_PLAY.txt\` in the zip."
+            echo "The sprite packs are read from \`assets/sprites/\` either way, so the"
+            echo "manager keeps his pixel art even when the page is opened straight off"
+            echo "the filesystem. See \`HOW_TO_PLAY.txt\` in the zip."
           } > notes.md
           gh release create "$TAG" "dist/$ZIP" \
             --title "Call Center Chaos $TAG" \

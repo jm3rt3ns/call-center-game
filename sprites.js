@@ -132,15 +132,37 @@ class SpriteLibrary {
         this.packs = {};
         this.ready = false;
         this.errors = [];
+        this.inlineNoted = false;
+    }
+
+    /**
+     * Read a manifest from assets/sprites/. Served over HTTP that is a plain
+     * fetch; opened from the filesystem, fetch() is blocked, so fall back to
+     * the copy manifests.js inlines (see scripts/gen-sprite-manifests.py).
+     * Sheets themselves are <img> loads, which file:// URLs do allow.
+     */
+    async loadManifest(basePath, relPath) {
+        try {
+            const response = await fetch(basePath + relPath);
+            if (!response.ok) throw new Error(`${relPath}: HTTP ${response.status}`);
+            return await response.json();
+        } catch (err) {
+            const inlined = typeof window !== 'undefined' && window.SPRITE_MANIFESTS;
+            const manifest = inlined && inlined[relPath];
+            if (!manifest) throw err;
+            if (!this.inlineNoted) {
+                console.info('[sprites] fetch unavailable, reading manifests.js instead');
+                this.inlineNoted = true;
+            }
+            return manifest;
+        }
     }
 
     // Read assets/sprites/packs.json and load every pack it lists.
     async loadAll(basePath = 'assets/sprites/') {
         this.basePath = basePath;
         try {
-            const response = await fetch(basePath + 'packs.json');
-            if (!response.ok) throw new Error(`packs.json: HTTP ${response.status}`);
-            const registry = await response.json();
+            const registry = await this.loadManifest(basePath, 'packs.json');
             await Promise.all((registry.packs || []).map(entry => this.loadPack(entry, basePath)));
         } catch (err) {
             // The game falls back to procedural pixel drawing, so a missing or
@@ -155,9 +177,7 @@ class SpriteLibrary {
     async loadPack(entry, basePath) {
         try {
             const manifestUrl = basePath + entry.manifest;
-            const response = await fetch(manifestUrl);
-            if (!response.ok) throw new Error(`${entry.manifest}: HTTP ${response.status}`);
-            const manifest = await response.json();
+            const manifest = await this.loadManifest(basePath, entry.manifest);
             const packBase = manifestUrl.slice(0, manifestUrl.lastIndexOf('/') + 1);
             const pack = new SpritePack(manifest, packBase);
             await pack.load();
