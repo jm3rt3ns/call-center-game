@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "superboss",
+  "name": "call-center-game",
   "compatibility_date": "2026-09-04",
   // No Worker script - this is a static site. scripts/build-site.sh stages
   // dist/site with just the files the browser needs.
