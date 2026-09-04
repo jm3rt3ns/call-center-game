@@ -1,0 +1,6 @@
+{
+  "$comment": "Registry of sprite packs. Drop a pack folder in assets/sprites/, add its pack.json path here, then point CONFIG.sprites.actors at its id.",
+  "packs": [
+    { "id": "bad_office_manager", "manifest": "bad_office_manager/pack.json" }
+  ]
+}

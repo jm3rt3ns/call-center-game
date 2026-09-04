@@ -1,14 +1,12 @@
 /**
  * Call Center Chaos - Game Core
- * Main game logic, state management, and game loop
+ * Main game logic, state management, and the 2D pixel-art render pass
  */
 
 class Game {
-    constructor(canvas, use3D = true) {
+    constructor(canvas) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
-        this.use3D = use3D;
-        this.renderer3D = null;
         
         // Make game globally accessible for rendering
         window.currentGame = this;
@@ -63,34 +61,17 @@ class Game {
         this.canvas.width = CONFIG.office.canvasWidth;
         this.canvas.height = CONFIG.office.canvasHeight;
         
+        // Keep pixel art crisp - no smoothing when sprites are scaled up
+        this.ctx.imageSmoothingEnabled = false;
+        
         // Create office
         this.office = new Office();
-        
-        // Initialize 3D renderer
-        if (this.use3D) {
-            const container = document.getElementById('game-3d-container');
-            if (container) {
-                // Clear previous renderer
-                container.innerHTML = '';
-                this.renderer3D = new Renderer3D(container);
-                this.init3DScene();
-                // Hide 2D canvas
-                this.canvas.style.display = 'none';
-            }
-        } else {
-            this.canvas.style.display = 'block';
-        }
         
         // Create manager in center of workspace
         this.manager = new Manager(450, 400);
         
         // Create employees
         this.createEmployees();
-        
-        // Create 3D entities
-        if (this.renderer3D) {
-            this.create3DEntities();
-        }
         
         // Reset game state
         this.revenue = 0;
@@ -108,35 +89,6 @@ class Game {
             bathroomsClosed: 0,
             employeesSentBack: 0,
         };
-    }
-    
-    init3DScene() {
-        // Create desks in the 3D scene based on office layout
-        this.office.desks.forEach((desk, index) => {
-            const x = desk.gridX;
-            const z = desk.gridY;
-            this.renderer3D.createDesk(x, z, index);
-        });
-        
-        // Create coffee station
-        const coffeeX = this.office.coffeeStation.gridX;
-        const coffeeZ = this.office.coffeeStation.gridY;
-        this.renderer3D.createCoffeeStation(coffeeX, coffeeZ);
-        
-        // Create bathroom stall
-        const bathroomX = this.office.bathroomStall.gridX;
-        const bathroomZ = this.office.bathroomStall.gridY;
-        this.renderer3D.createBathroomStall(bathroomX, bathroomZ);
-    }
-    
-    create3DEntities() {
-        // Create 3D manager
-        this.renderer3D.createManager(this.manager);
-        
-        // Create 3D employees
-        this.employees.forEach(employee => {
-            this.renderer3D.createEmployee(employee);
-        });
     }
     
     createEmployees() {
@@ -276,6 +228,15 @@ class Game {
     endGame(won) {
         this.state = won ? GAME_STATE.WIN : GAME_STATE.LOSE;
         
+        // The manager gloats, or goes down with the ship
+        if (won) {
+            this.manager.playReaction(SPRITE_ROLE.CELEBRATE);
+        } else if (this.insaneEmployee) {
+            this.manager.playReaction(SPRITE_ROLE.DEAD);
+        } else {
+            this.manager.playReaction(SPRITE_ROLE.FALL);
+        }
+        
         // Play appropriate sound
         if (typeof soundManager !== 'undefined') {
             if (won) {
@@ -301,6 +262,8 @@ class Game {
         if (typeof soundManager !== 'undefined') {
             soundManager.playCoffeeDumpSound();
         }
+        
+        this.manager.playReaction(SPRITE_ROLE.ANGRY);
         
         // Affect all employees who need coffee
         this.employees.forEach(emp => {
@@ -328,6 +291,8 @@ class Game {
             soundManager.playBathroomSound();
         }
         
+        this.manager.playReaction(SPRITE_ROLE.SLAM);
+        
         // Affect all employees who need bathroom
         this.employees.forEach(emp => {
             if (emp.needsBathroom || emp.state === EMPLOYEE_STATE.ON_BATHROOM_BREAK) {
@@ -349,6 +314,8 @@ class Game {
             this.collidingEmployee = null;
             this.showCollisionPrompt = false;
             
+            this.manager.playReaction(SPRITE_ROLE.COMMAND);
+            
             // Play send back sound
             if (typeof soundManager !== 'undefined') {
                 soundManager.playSendBackSound();
@@ -365,30 +332,6 @@ class Game {
     // ============================================
     
     render() {
-        if (this.use3D && this.renderer3D) {
-            this.render3D();
-        } else {
-            this.render2D();
-        }
-    }
-    
-    render3D() {
-        // Update time-of-day lighting
-        this.renderer3D.updateTimeOfDay(this.workdayTime);
-        
-        // Update 3D positions
-        this.employees.forEach(employee => {
-            this.renderer3D.updateEmployee(employee);
-        });
-        
-        this.renderer3D.updateManager(this.manager);
-        this.renderer3D.updateCamera(this.manager);
-        
-        // Render the 3D scene
-        this.renderer3D.render();
-    }
-    
-    render2D() {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
@@ -398,23 +341,65 @@ class Game {
         // Render ability indicators
         this.renderAbilityIndicators();
         
-        // Render employees
-        for (const employee of this.employees) {
-            employee.render(this.ctx);
-        }
-        
-        // Render manager
-        this.manager.render(this.ctx);
+        // Render characters back to front so the ones in front overlap
+        // the ones behind them
+        this.renderCharacters();
         
         // Render collision prompt
         if (this.showCollisionPrompt) {
             this.renderCollisionPrompt();
         }
+        
+        // Tint the whole scene to the time of day
+        this.renderTimeOfDayTint();
+    }
+    
+    renderCharacters() {
+        const characters = [...this.employees, this.manager];
+        // Depth in an isometric view runs along x + y
+        characters.sort((a, b) => (a.x + a.y) - (b.x + b.y));
+        
+        for (const character of characters) {
+            character.render(this.ctx);
+        }
+    }
+    
+    /**
+     * Warm morning light, neutral midday, deep orange late afternoon, as a flat
+     * wash over the finished frame.
+     */
+    renderTimeOfDayTint() {
+        const workdayHours = CONFIG.game.workdayEndHour - CONFIG.game.workdayStartHour;
+        const t = Math.max(0, Math.min(1, this.workdayTime / workdayHours));
+        
+        let color, alpha, mode;
+        if (t < 0.35) {
+            // Morning: warm amber haze laid over the scene, fading to nothing
+            mode = 'source-over';
+            color = 'rgb(255, 186, 112)';
+            alpha = 0.18 * (1 - t / 0.35);
+        } else if (t < 0.6) {
+            // Midday: clear
+            return;
+        } else {
+            // Afternoon into evening: multiply through a sunset orange, which
+            // both warms and dims the office as the day runs out
+            mode = 'multiply';
+            color = 'rgb(255, 150, 92)';
+            alpha = 0.45 * ((t - 0.6) / 0.4);
+        }
+        
+        if (alpha <= 0.005) return;
+        
+        this.ctx.save();
+        this.ctx.globalCompositeOperation = mode;
+        this.ctx.globalAlpha = alpha;
+        this.ctx.fillStyle = color;
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.restore();
     }
     
     renderAbilityIndicators() {
-        if (this.use3D) return; // Skip for 3D mode
-        
         // Get isometric positions
         const coffeeScreen = this.office.worldToScreen(this.office.coffeeStation.x, this.office.coffeeStation.y);
         const bathroomScreen = this.office.worldToScreen(this.office.bathroomStall.x, this.office.bathroomStall.y);
@@ -451,8 +436,6 @@ class Game {
     }
     
     renderCollisionPrompt() {
-        if (this.use3D) return; // Skip for 3D mode - handled by HUD
-        
         // Get manager's isometric position
         const managerScreen = this.office.worldToScreen(this.manager.x, this.manager.y);
         
