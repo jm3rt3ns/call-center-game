@@ -347,6 +347,37 @@ class Office {
         return path;
     }
     
+    /**
+     * The rectangle the isometric scene actually covers on screen. The map is
+     * a diamond that reaches well outside the canvas rectangle, so anything
+     * that frames or backs the scene - the camera, the background fill - has
+     * to work from these bounds rather than the canvas size.
+     */
+    sceneBounds() {
+        if (this._sceneBounds) return this._sceneBounds;
+        
+        const halfTile = this.tileWidth / 2;
+        const wallHeight = 25;   // matches drawIsometricWall
+        const headroom = 48;     // room for sprites standing on the back row
+        
+        const corners = [
+            this.toIso(0, 0),
+            this.toIso(this.cols - 1, 0),
+            this.toIso(0, this.rows - 1),
+            this.toIso(this.cols - 1, this.rows - 1),
+        ];
+        const xs = corners.map(c => c.x);
+        const ys = corners.map(c => c.y);
+        
+        this._sceneBounds = {
+            left: Math.min(...xs) - halfTile,
+            right: Math.max(...xs) + halfTile,
+            top: Math.min(...ys) - wallHeight - headroom,
+            bottom: Math.max(...ys) + this.tileHeight,
+        };
+        return this._sceneBounds;
+    }
+    
     render(ctx) {
         // Draw floor with isometric perspective
         this.renderIsometricFloor(ctx);
@@ -365,9 +396,16 @@ class Office {
     }
     
     renderIsometricFloor(ctx) {
-        // Dark background
+        // Dark background behind the whole diamond, so a camera looking at any
+        // corner of the map still sees office rather than empty canvas
+        const bounds = this.sceneBounds();
         ctx.fillStyle = '#1a1a2e';
-        ctx.fillRect(0, 0, this.width, this.height);
+        ctx.fillRect(
+            bounds.left,
+            bounds.top,
+            bounds.right - bounds.left,
+            bounds.bottom - bounds.top
+        );
         
         // Draw base floor grid with pixel art style
         ctx.strokeStyle = '#2a2a4a';
