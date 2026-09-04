@@ -34,7 +34,9 @@ class Game {
         
         // Timing
         this.lastTime = 0;
-        this.deltaTime = 0;
+        this.deltaTime = 0;     // Simulation delta - real delta x speedMultiplier
+        this.realDeltaTime = 0; // Wall-clock delta for this frame, in ms
+        this.speedMultiplier = getSpeedMultiplier();
         
         // Sound
         this.lastFootstepTime = 0;
@@ -74,6 +76,7 @@ class Game {
         this.createEmployees();
         
         // Reset game state
+        this.speedMultiplier = getSpeedMultiplier();
         this.revenue = 0;
         this.gameTime = 0;
         this.workdayTime = 0;
@@ -118,8 +121,13 @@ class Game {
         if (this.lastTime === 0) {
             this.lastTime = timestamp;
         }
-        this.deltaTime = timestamp - this.lastTime;
+        this.realDeltaTime = timestamp - this.lastTime;
         this.lastTime = timestamp;
+        
+        // Everything downstream - the clock, employees, the manager, sprite
+        // animation - is driven off this one delta, so scaling it here speeds
+        // up or slows down the whole simulation uniformly
+        this.deltaTime = this.realDeltaTime * this.speedMultiplier;
         
         // Cap delta time to prevent huge jumps
         if (this.deltaTime > 100) this.deltaTime = 100;
@@ -470,7 +478,9 @@ class Game {
     
     getRemainingRealTime() {
         const totalSeconds = CONFIG.game.gameDurationMinutes * 60;
-        const remaining = Math.max(0, totalSeconds - this.gameTime);
+        // gameTime runs at speedMultiplier x real time, so the workday's
+        // remaining seconds convert back to wall-clock seconds
+        const remaining = Math.max(0, totalSeconds - this.gameTime) / this.speedMultiplier;
         const minutes = Math.floor(remaining / 60);
         const seconds = Math.floor(remaining % 60);
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
