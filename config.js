@@ -13,6 +13,13 @@ const CONFIG = {
         revenueTarget: 2000,        // Pesos needed to win
         workdayStartHour: 8,        // 8:00 AM
         workdayEndHour: 17,         // 5:00 PM (9 hours total)
+
+        // Global simulation speed. Everything driven by delta time - the
+        // workday clock, employees, the manager, breaks, animations - runs at
+        // this multiple of real time. 1.0 = original pace, 2.0 = double speed.
+        speedMultiplier: 1.2,
+        minSpeedMultiplier: 0.25,   // Clamp bounds, so a bad value can't stall
+        maxSpeedMultiplier: 4,      // or fast-forward the sim into nonsense
     },
 
     // ============================================
@@ -244,6 +251,15 @@ const GAME_STATE = {
     WIN: 'win',
     LOSE: 'lose',
 };
+
+// The active simulation speed, clamped to the configured bounds so a stray
+// value from the menu (or a console tweak) can't break the game loop
+function getSpeedMultiplier() {
+    const speed = Number(CONFIG.game.speedMultiplier);
+    if (!isFinite(speed) || speed <= 0) return 1;
+    return Math.min(CONFIG.game.maxSpeedMultiplier,
+                    Math.max(CONFIG.game.minSpeedMultiplier, speed));
+}
 
 // Utility function to get config value
 function getConfig(path) {

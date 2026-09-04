@@ -35,6 +35,16 @@ python3 -m http.server 8000
 | B | close the bathroom |
 | Space | send a colliding employee back to their desk |
 
+## Game speed
+
+The whole simulation - the workday clock, the employees, the manager, the
+animations - runs off one delta scaled by `CONFIG.game.speedMultiplier`
+(default `1.2`, where `1.0` is the original pace). Set it from the "Game
+Speed" box in the main menu, or edit the default in `config.js`. The workday
+still lasts `gameDurationMinutes` of game time, so at 1.2x it wraps up in
+5/6ths of that in wall-clock minutes - which is what the HUD's "Real Time"
+counts down.
+
 ## Layout
 
 | file | what it does |
