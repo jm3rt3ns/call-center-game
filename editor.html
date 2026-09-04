@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Level Editor - Call Center Chaos</title>
+    <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+    <header id="editor-bar">
+        <h1>🧱 Level Editor</h1>
+        <label>Level
+            <select id="level-picker"></select>
+        </label>
+        <label>Width
+            <input type="number" id="level-cols" min="6" max="120" step="1">
+        </label>
+        <label>Height
+            <input type="number" id="level-rows" min="6" max="120" step="1">
+        </label>
+        <button id="resize-level" class="btn">Resize</button>
+        <button id="blank-level" class="btn">New blank</button>
+        <span class="spacer"></span>
+        <button id="playtest" class="btn primary">▶ Playtest</button>
+        <button id="clear-playtest" class="btn">Stop playtesting</button>
+        <a class="btn" href="index.html">Back to the game</a>
+    </header>
+
+    <main id="editor-body">
+        <aside id="tools">
+            <h2>Tiles</h2>
+            <div id="palette"></div>
+
+            <h2>Tool</h2>
+            <div id="tool-picker">
+                <label><input type="radio" name="tool" value="brush" checked> Brush <kbd>B</kbd></label>
+                <label><input type="radio" name="tool" value="rect"> Rectangle <kbd>R</kbd></label>
+                <label><input type="radio" name="tool" value="fill"> Fill area <kbd>F</kbd></label>
+            </div>
+            <p class="hint">
+                Drag to paint. Right-click paints floor. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes.
+            </p>
+
+            <h2>This level</h2>
+            <ul id="level-stats"></ul>
+            <ul id="level-problems"></ul>
+        </aside>
+
+        <section id="canvases">
+            <div class="panel">
+                <h2>Plan <span class="sub">- click to paint</span></h2>
+                <canvas id="grid-canvas"></canvas>
+            </div>
+            <div class="panel">
+                <h2>Preview <span class="sub">- how the game will draw it</span></h2>
+                <canvas id="preview-canvas" width="520" height="320"></canvas>
+            </div>
+        </section>
+
+        <aside id="text-side">
+            <h2>Map text</h2>
+            <p class="hint">
+                This is the level. Edit it here or paint it on the left - they stay in
+                sync. To keep a level for good, paste it into a <code>map</code> block
+                in <code>levels.js</code>.
+            </p>
+            <textarea id="map-text" spellcheck="false"></textarea>
+            <div class="row">
+                <button id="copy-text" class="btn">Copy</button>
+                <button id="download-text" class="btn">Download .txt</button>
+            </div>
+            <p id="status" class="status"></p>
+        </aside>
+    </main>
+
+    <script src="config.js"></script>
+    <script src="levels.js"></script>
+    <script src="office.js"></script>
+    <script src="editor.js"></script>
+</body>
+</html>

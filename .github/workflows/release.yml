@@ -36,7 +36,7 @@ jobs:
           set -euo pipefail
           pkg=dist/call-center-chaos
           mkdir -p "$pkg"
-          cp index.html styles.css ./*.js README.md "$pkg/"
+          cp index.html editor.html styles.css editor.css ./*.js README.md "$pkg/"
           cp -R assets "$pkg/"
 
       - name: Add the launchers
@@ -125,16 +125,18 @@ jobs:
           set -euo pipefail
           pkg=dist/call-center-chaos
           missing=0
-          # Every asset index.html pulls in must have made it into the zip.
-          refs=$(grep -oE '(src|href)="[^"]+"' "$pkg/index.html" | sed -E 's/.*"(.*)"/\1/')
-          for ref in $refs; do
-            case "$ref" in
-              http*|//*|data:*|\#*) continue ;;
-            esac
-            if [ ! -f "$pkg/$ref" ]; then
-              echo "::error::index.html references $ref, which is not in the package"
-              missing=1
-            fi
+          # Every asset the pages pull in must have made it into the zip.
+          for page in index.html editor.html; do
+            refs=$(grep -oE '(src|href)="[^"]+"' "$pkg/$page" | sed -E 's/.*"(.*)"/\1/')
+            for ref in $refs; do
+              case "$ref" in
+                http*|//*|data:*|\#*) continue ;;
+              esac
+              if [ ! -f "$pkg/$ref" ]; then
+                echo "::error::$page references $ref, which is not in the package"
+                missing=1
+              fi
+            done
           done
           for required in assets/sprites/packs.json play.sh play.bat HOW_TO_PLAY.txt; do
             if [ ! -e "$pkg/$required" ]; then

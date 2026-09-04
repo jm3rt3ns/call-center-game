@@ -30,12 +30,12 @@ and the deploy fails with a missing assets directory.
 
 `scripts/build-site.sh` copies into `dist/site`:
 
-- `index.html`, `styles.css`, every top-level `*.js`
+- `index.html`, `editor.html`, `styles.css`, `editor.css`, every top-level `*.js`
 - `assets/` (the sprite packs)
 - a generated `_headers` file - `no-cache` on the code so a push is picked up
   on the next reload, one hour on `/assets/*`
 
-It then fails the build if `index.html` references a file that did not make it
+It then fails the build if either page references a file that did not make it
 into the upload, so a missing asset never reaches the live site.
 
 Everything else - `README.md`, `DEPLOY.md`, `.github/`, `wrangler.jsonc` - stays
@@ -72,6 +72,6 @@ on the next deploy, so the custom domain has to be moved over to it.
 | symptom | cause |
 |---|---|
 | `The directory specified by the "assets.directory" field does not exist` | The build command is blank or failed - it must run `bash scripts/build-site.sh` |
-| Build fails with `index.html references ...` | A file `index.html` links to is missing from the repo |
+| Build fails with `... references ...` | A file `index.html` or `editor.html` links to is missing from the repo |
 | Deploy succeeds but the domain 404s | The custom domain is not attached yet; check the `workers.dev` URL first |
 | Old art after a deploy | Hard-refresh once; `/assets/*` is cached for an hour |

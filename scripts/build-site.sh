@@ -9,7 +9,7 @@ rm -rf "$site"
 mkdir -p "$site"
 
 # Only the files the browser needs - no README, no workflows, no wrangler config.
-cp index.html styles.css ./*.js "$site/"
+cp index.html editor.html styles.css editor.css ./*.js "$site/"
 cp -R assets "$site/"
 
 # The filenames are not content-hashed, so the code must revalidate on every
@@ -25,18 +25,20 @@ cat > "$site/_headers" <<'HEADERS'
   Cache-Control: public, max-age=3600, must-revalidate
 HEADERS
 
-# Every asset index.html pulls in must have made it into the upload, so a
+# Every asset the pages pull in must have made it into the upload, so a
 # missing file fails the build instead of reaching the live site.
 missing=0
-refs=$(grep -oE '(src|href)="[^"]+"' "$site/index.html" | sed -E 's/.*"(.*)"/\1/')
-for ref in $refs; do
-  case "$ref" in
-    http*|//*|data:*|\#*) continue ;;
-  esac
-  if [ ! -f "$site/$ref" ]; then
-    echo "error: index.html references $ref, which is not in the upload" >&2
-    missing=1
-  fi
+for page in index.html editor.html; do
+  refs=$(grep -oE '(src|href)="[^"]+"' "$site/$page" | sed -E 's/.*"(.*)"/\1/')
+  for ref in $refs; do
+    case "$ref" in
+      http*|//*|data:*|\#*) continue ;;
+    esac
+    if [ ! -f "$site/$ref" ]; then
+      echo "error: $page references $ref, which is not in the upload" >&2
+      missing=1
+    fi
+  done
 done
 if [ ! -e "$site/assets/sprites/packs.json" ]; then
   echo "error: missing assets/sprites/packs.json" >&2
