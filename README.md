@@ -119,3 +119,9 @@ how far ahead of him it looks.
 Characters draw from sprite packs when one is assigned to them in
 `CONFIG.sprites.actors`, and fall back to procedural pixel drawing otherwise.
 `assets/sprites/README.md` covers adding a pack.
+
+## Commissioning art
+
+`docs/hiring-a-pixel-artist.md` is where to find a freelance pixel artist and
+what to brief them with; `docs/artist-contract.md` is a fill-in-the-blanks
+commission contract that matches the pack spec.
