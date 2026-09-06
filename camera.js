@@ -13,7 +13,9 @@ class Camera {
         this.viewHeight = viewHeight;
         
         const config = CONFIG.camera || {};
-        this.zoom = config.zoom || 1;
+        this.baseZoom = config.zoom || 1;
+        this.userZoom = 1;
+        this.zoom = this.baseZoom;
         this.smoothing = config.smoothing !== undefined ? config.smoothing : 5;
         this.deadzoneX = config.deadzoneX || 0;
         this.deadzoneY = config.deadzoneY || 0;
@@ -31,6 +33,75 @@ class Camera {
     }
     
     /**
+     * The office scaled its tiles down to fit the whole floor plan into the
+     * canvas, which on a phone leaves them unreadably small. Zoom back in until
+     * a tile is a sensible size for the screen it is on - a wide monitor lands
+     * on the same 1.75x framing the game has always had, a phone ends up much
+     * closer in.
+     */
+    fitZoom(office) {
+        const config = CONFIG.camera || {};
+        if (config.autoZoom === false || !office) {
+            this.baseZoom = config.zoom || 1;
+        } else {
+            const target = config.tileTarget || {};
+            const fraction = target.fraction || 0.14;
+            const wanted = Math.max(
+                target.min || 40,
+                Math.min(target.max || 70,
+                         Math.min(this.viewWidth, this.viewHeight) * fraction)
+            );
+            const drawnTileWidth = (CONFIG.office.tileWidth || 40) * (office.scale || 1);
+            this.baseZoom = wanted / Math.max(1, drawnTileWidth);
+        }
+        
+        this.baseZoom = Math.max(config.minZoom || 1,
+                                 Math.min(config.maxZoom || 5, this.baseZoom));
+        this.applyZoom();
+    }
+    
+    /**
+     * A pinch nudges the automatic zoom rather than replacing it, so letting go
+     * on a phone never lands you in the desktop framing.
+     */
+    setUserZoom(factor) {
+        const config = CONFIG.camera || {};
+        this.userZoom = Math.max(config.minUserZoom || 0.6,
+                                 Math.min(config.maxUserZoom || 2.2, factor));
+        this.applyZoom();
+        return this.userZoom;
+    }
+    
+    applyZoom() {
+        const config = CONFIG.camera || {};
+        this.zoom = Math.max(config.minZoom || 1,
+                             Math.min(config.maxZoom || 5, this.baseZoom * this.userZoom));
+        this.clamp();
+    }
+    
+    /** The window changed size - reframe around the same point. */
+    resize(viewWidth, viewHeight, office) {
+        this.viewWidth = viewWidth;
+        this.viewHeight = viewHeight;
+        if (office) {
+            this.bounds = office.sceneBounds();
+            this.fitZoom(office);
+        }
+        this.clamp();
+    }
+    
+    /**
+     * Undo apply(): where a point on the canvas lands in the scene's own
+     * coordinates, so a tap can be matched against what is drawn there.
+     */
+    screenToScene(canvasX, canvasY) {
+        return {
+            x: (canvasX - this.viewWidth / 2) / this.zoom + this.x,
+            y: (canvasY - this.viewHeight / 2) / this.zoom + this.y,
+        };
+    }
+    
+    /**
      * Where the camera would like to be: the boss's feet, lifted a little so
      * his body sits in the middle of the frame rather than the floor under him,
      * and led slightly in the direction he is running.
@@ -41,7 +112,10 @@ class Camera {
             boss.x + (boss.velocityX || 0) * lead,
             boss.y + (boss.velocityY || 0) * lead
         );
-        point.y += this.focusOffsetY;
+        // The offset is framing, measured on the screen, so it has to be
+        // divided back out of the zoom - otherwise a phone's tight zoom lifts
+        // the boss into the bottom corner of the frame
+        point.y += this.focusOffsetY / this.zoom;
         return point;
     }
     
@@ -52,8 +126,10 @@ class Camera {
     follow(office, boss, deltaTime) {
         this.bounds = office.sceneBounds();
         const focus = this.focusPoint(office, boss);
-        const targetX = this.settle(this.x, focus.x, this.deadzoneX);
-        const targetY = this.settle(this.y, focus.y, this.deadzoneY);
+        // Same again for the deadzone: it is how far he may wander on screen,
+        // not how far across the floor
+        const targetX = this.settle(this.x, focus.x, this.deadzoneX / this.zoom);
+        const targetY = this.settle(this.y, focus.y, this.deadzoneY / this.zoom);
         
         // Frame-rate independent exponential ease
         const t = this.smoothing > 0
@@ -69,6 +145,7 @@ class Camera {
     /** Jump straight to the boss - used when a game starts. */
     snapTo(office, boss) {
         this.bounds = office.sceneBounds();
+        this.fitZoom(office);
         const focus = this.focusPoint(office, boss);
         this.x = focus.x;
         this.y = focus.y;
