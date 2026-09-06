@@ -39,6 +39,37 @@ pack manifest - the release and deploy builds fail if it has drifted.
 | C | dump the coffee |
 | B | close the bathroom |
 | Space | send a colliding employee back to their desk |
+| mouse wheel | zoom in and out |
+
+### On a phone
+
+The same game plays with gestures, and the keyboard still works when there is
+one:
+
+| gesture | action |
+|---|---|
+| drag anywhere on the floor | a stick appears under your thumb - push it to walk, in screen directions rather than the world's isometric axes |
+| tap an employee | send them back to their desk |
+| the ☕ and 🚻 buttons | dump the coffee, close the bathroom |
+| pinch | zoom in and out |
+
+Tapping someone back to their desk still costs you the walk over: they have to
+be inside the manager's fear aura to hear him, which is the same reach the
+game already draws on the floor. Everyone in range wears a yellow ring, so you
+can see what a tap will land on, and a tap that misses says so.
+
+The layout follows the screen. Below 900px wide (or 520px tall) the HUD
+compacts, the office runs edge to edge, and the side list of employees becomes
+a deck at the bottom holding only the nearest one or two - anyone about to snap
+is dealt in wherever they are on the floor. Everyone else carries their name,
+insanity and productivity on a plate above their head once the manager is near
+them. `CONFIG.ui` holds how many cards the deck deals and how far the overhead
+plates reach.
+
+The camera picks its own zoom from the size of the screen, aiming for a tile
+you can actually see: a desktop lands on the framing the game has always had, a
+phone ends up much closer in. `CONFIG.camera.tileTarget` is the wanted tile
+size, and `autoZoom: false` goes back to the fixed `zoom`.
 
 ## Game speed
 
@@ -60,6 +91,7 @@ counts down.
 | `entities.js` | the manager and the employees, their AI and their drawing |
 | `office.js` | floor plan, isometric projection, A* pathfinding, environment art |
 | `camera.js` | the zoomed view that follows the boss around the office |
+| `input.js` | touch gestures - the thumb stick, tap-to-send-back, pinch zoom |
 | `game.js` | game loop, win/lose rules, the render pass |
 | `main.js` | menus, HUD, input, end screens |
 | `sounds.js` | synthesised sound effects |

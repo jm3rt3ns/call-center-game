@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#16213e">
     <title>Call Center Chaos - Pixel Art Management Simulation</title>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -52,12 +55,22 @@
         <div id="how-to-play-screen" class="screen hidden">
             <h2>How to Play</h2>
             <div class="instructions">
-                <h4>Controls:</h4>
+                <h4>Keyboard:</h4>
                 <ul>
                     <li><strong>WASD / Arrow Keys</strong> - Move your manager around the office</li>
                     <li><strong>C Key</strong> - Dump the coffee (disables coffee breaks for 1 minute)</li>
                     <li><strong>B Key</strong> - Close bathroom for cleaning (disables bathroom for 1 minute)</li>
                     <li><strong>Space</strong> - Send nearby employee back to desk when colliding</li>
+                    <li><strong>Mouse wheel</strong> - Zoom the office in and out</li>
+                </ul>
+
+                <h4>Touch:</h4>
+                <ul>
+                    <li><strong>Drag anywhere</strong> - A stick appears under your thumb; push it to walk</li>
+                    <li><strong>Tap an employee</strong> - Send them back to their desk, if you are close
+                        enough for them to hear you. Anyone in range wears a yellow ring.</li>
+                    <li><strong>☕ / 🚻 buttons</strong> - Dump the coffee, close the bathroom</li>
+                    <li><strong>Pinch</strong> - Zoom the office in and out</li>
                 </ul>
                 
                 <h4>Objective:</h4>
@@ -78,19 +91,19 @@
             <div id="game-hud">
                 <div class="hud-item">
                     <span class="hud-label">Revenue:</span>
-                    <span id="hud-revenue">0</span> pesos
+                    <span class="hud-value"><span id="hud-revenue">0</span><span class="hud-unit"> pesos</span></span>
                 </div>
                 <div class="hud-item">
                     <span class="hud-label">Target:</span>
-                    <span id="hud-target">500</span> pesos
+                    <span class="hud-value"><span id="hud-target">500</span><span class="hud-unit"> pesos</span></span>
                 </div>
                 <div class="hud-item">
                     <span class="hud-label">Time:</span>
-                    <span id="hud-time">8:00 AM</span>
+                    <span class="hud-value" id="hud-time">8:00 AM</span>
                 </div>
                 <div class="hud-item">
                     <span class="hud-label">Real Time:</span>
-                    <span id="hud-real-time">20:00</span>
+                    <span class="hud-value" id="hud-real-time">20:00</span>
                 </div>
                 <div class="hud-item status-indicator">
                     <span id="coffee-status">☕ Coffee: Available</span>
@@ -102,8 +115,29 @@
             
             <canvas id="game-canvas"></canvas>
             
+            <!-- The floating thumb stick, moved to wherever the drag started -->
+            <div id="joystick" class="hidden">
+                <div class="joystick-base"></div>
+                <div class="joystick-knob"></div>
+            </div>
+            
+            <!-- The two keyboard abilities, for screens with no keyboard -->
+            <div id="touch-actions">
+                <button id="action-coffee" class="touch-button" type="button" aria-label="Dump the coffee">
+                    <span class="touch-icon">☕</span>
+                    <span class="touch-label">Dump</span>
+                </button>
+                <button id="action-bathroom" class="touch-button" type="button" aria-label="Close the bathroom">
+                    <span class="touch-icon">🚻</span>
+                    <span class="touch-label">Close</span>
+                </button>
+            </div>
+            
             <div id="employee-panel">
-                <h3>Employee Status</h3>
+                <h3>
+                    <span class="panel-title">Employee Status</span>
+                    <span id="panel-count" class="panel-count"></span>
+                </h3>
                 <div id="employee-list"></div>
             </div>
         </div>
@@ -135,6 +169,7 @@
     <script src="entities.js"></script>
     <script src="office.js"></script>
     <script src="camera.js"></script>
+    <script src="input.js"></script>
     <script src="game.js"></script>
     <script src="main.js"></script>
 </body>

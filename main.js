@@ -8,6 +8,12 @@
 // ============================================
 let game = null;
 let animationFrameId = null;
+let touchControls = null;
+
+// Below this the side panel has nowhere to live, so the HUD, the employee
+// cards and the controls switch to the phone layout
+const COMPACT_LAYOUT_MAX_WIDTH = 900;
+const COMPACT_LAYOUT_MAX_HEIGHT = 520;
 
 // DOM Elements
 const mainMenu = document.getElementById('main-menu');
@@ -31,10 +37,83 @@ const hudRealTime = document.getElementById('hud-real-time');
 const coffeeStatus = document.getElementById('coffee-status');
 const bathroomStatus = document.getElementById('bathroom-status');
 const employeeList = document.getElementById('employee-list');
+const panelCount = document.getElementById('panel-count');
+
+// Touch furniture
+const joystick = document.getElementById('joystick');
+const actionCoffee = document.getElementById('action-coffee');
+const actionBathroom = document.getElementById('action-bathroom');
 
 // Level line on the main menu
 const activeLevelName = document.getElementById('active-level-name');
 const useBuiltInLevel = document.getElementById('use-built-in-level');
+
+// ============================================
+// LAYOUT
+// ============================================
+
+/**
+ * A phone, a narrow window, or a laptop in landscape with no vertical room -
+ * anything that cannot spare 250px down the side for the employee panel.
+ */
+function isCompactLayout() {
+    return window.innerWidth <= COMPACT_LAYOUT_MAX_WIDTH ||
+           window.innerHeight <= COMPACT_LAYOUT_MAX_HEIGHT;
+}
+
+function applyLayoutClasses() {
+    document.body.classList.toggle('compact-layout', isCompactLayout());
+    document.body.classList.toggle('touch-input', isTouchDevice());
+}
+
+/**
+ * How big the canvas may be. On a wide screen the panel and the HUD keep their
+ * own space beside and above it, exactly as before. On a phone the office runs
+ * edge to edge and the HUD, the deck and the buttons float over it - there is
+ * not enough screen to give any of them a lane of their own.
+ */
+function computeCanvasSize() {
+    applyLayoutClasses();
+    
+    // visualViewport is the part actually on screen once the browser chrome
+    // and the keyboard have taken their cut
+    const viewport = window.visualViewport;
+    const width = Math.round(viewport ? viewport.width : window.innerWidth);
+    const height = Math.round(viewport ? viewport.height : window.innerHeight);
+    
+    if (isCompactLayout()) {
+        return { width: Math.max(240, width), height: Math.max(240, height) };
+    }
+    return {
+        width: Math.max(320, width - 250),
+        height: Math.max(240, height - 90),
+    };
+}
+
+let resizeFrame = null;
+
+/**
+ * Rotating a phone, a browser hiding its address bar, or a window being dragged
+ * about all land here. Coalesced into one frame so a drag-resize does not refit
+ * the office on every pixel.
+ */
+function handleViewportChange() {
+    if (resizeFrame) cancelAnimationFrame(resizeFrame);
+    resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = null;
+        const size = computeCanvasSize();
+        CONFIG.office.canvasWidth = size.width;
+        CONFIG.office.canvasHeight = size.height;
+        if (game) game.resize(size.width, size.height);
+        refreshEmployeeDeck(true);
+    });
+}
+
+window.addEventListener('resize', handleViewportChange);
+window.addEventListener('orientationchange', handleViewportChange);
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', handleViewportChange);
+}
 
 // ============================================
 // SCREEN MANAGEMENT
@@ -125,9 +204,10 @@ async function startGame() {
     // Update HUD target display
     hudTarget.textContent = CONFIG.game.revenueTarget;
     
-    // Update canvas size for fullscreen
-    CONFIG.office.canvasWidth = window.innerWidth - 250;
-    CONFIG.office.canvasHeight = window.innerHeight - 90;
+    // Fit the office to whatever screen this is
+    const size = computeCanvasSize();
+    CONFIG.office.canvasWidth = size.width;
+    CONFIG.office.canvasHeight = size.height;
     
     // Initialize the 2D pixel-art game
     game = new Game(canvas);
@@ -135,6 +215,13 @@ async function startGame() {
     
     // Show game screen
     showScreen('game-screen');
+    
+    // Gestures need the canvas laid out at its final size before they can
+    // convert a touch into a point in the office
+    if (!touchControls) {
+        touchControls = new TouchControls(canvas, joystick, { getGame: () => game });
+    }
+    touchControls.reset();
     
     // Create employee status cards
     createEmployeeCards();
@@ -197,28 +284,85 @@ function updateUI() {
     hudRealTime.textContent = game.getRemainingRealTime();
     
     // Update status indicators
+    // A phone's HUD has no room for the full sentence, and a countdown that
+    // gets cut off by an ellipsis is worse than no countdown at all
+    const terse = document.body.classList.contains('compact-layout');
+    
     if (game.coffeeDumped) {
-        coffeeStatus.textContent = `☕ Coffee: DUMPED (${Math.ceil(game.coffeeDumpTimer)}s)`;
+        const left = `${Math.ceil(game.coffeeDumpTimer)}s`;
+        coffeeStatus.textContent = terse ? `☕ ${left}` : `☕ Coffee: DUMPED (${left})`;
         coffeeStatus.style.background = 'rgba(239, 68, 68, 0.5)';
     } else {
-        coffeeStatus.textContent = '☕ Coffee: Available';
+        coffeeStatus.textContent = terse ? '☕ Coffee OK' : '☕ Coffee: Available';
         coffeeStatus.style.background = 'rgba(139, 69, 19, 0.5)';
     }
     
     if (game.bathroomClosed) {
-        bathroomStatus.textContent = `🚻 Bathroom: CLOSED (${Math.ceil(game.bathroomCloseTimer)}s)`;
+        const left = `${Math.ceil(game.bathroomCloseTimer)}s`;
+        bathroomStatus.textContent = terse ? `🚻 ${left}` : `🚻 Bathroom: CLOSED (${left})`;
         bathroomStatus.style.background = 'rgba(239, 68, 68, 0.5)';
     } else {
-        bathroomStatus.textContent = '🚻 Bathroom: Open';
+        bathroomStatus.textContent = terse ? '🚻 Open' : '🚻 Bathroom: Open';
         bathroomStatus.style.background = 'rgba(59, 130, 246, 0.5)';
     }
+    
+    updateActionButtons();
     
     // Update employee cards
     updateEmployeeCards();
 }
 
+/**
+ * The two abilities live on the C and B keys, which a phone does not have.
+ * The buttons carry their own cooldown so the player can see when they come
+ * back without hunting through the HUD.
+ */
+function updateActionButtons() {
+    if (actionCoffee) {
+        const busy = game.coffeeDumped;
+        actionCoffee.classList.toggle('busy', busy);
+        actionCoffee.querySelector('.touch-label').textContent =
+            busy ? `${Math.ceil(game.coffeeDumpTimer)}s` : 'Dump';
+    }
+    if (actionBathroom) {
+        const busy = game.bathroomClosed;
+        actionBathroom.classList.toggle('busy', busy);
+        actionBathroom.querySelector('.touch-label').textContent =
+            busy ? `${Math.ceil(game.bathroomCloseTimer)}s` : 'Close';
+    }
+}
+
+/** Fire an ability from its on-screen button rather than its key. */
+function bindActionButton(button, run) {
+    if (!button) return;
+    // pointerdown, not click: an ability should land the moment the thumb does,
+    // and the canvas under it must not also read the press as a tap
+    button.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!game || game.state !== GAME_STATE.PLAYING) return;
+        if (typeof soundManager !== 'undefined') soundManager.resume();
+        run();
+    });
+}
+
+bindActionButton(actionCoffee, () => game.dumpCoffee());
+bindActionButton(actionBathroom, () => game.closeBathroom());
+
+// Card elements, kept per employee so the per-frame update is a handful of
+// property writes rather than a DOM query storm
+let employeeCards = [];
+
+// Which employees the deck is currently showing, so it only reshuffles when
+// the cast actually changes
+let deckMembers = '';
+let deckCheckedAt = 0;
+
 function createEmployeeCards() {
     employeeList.innerHTML = '';
+    employeeCards = [];
+    deckMembers = '';
+    deckCheckedAt = 0;
     
     game.employees.forEach((emp, index) => {
         const card = document.createElement('div');
@@ -228,83 +372,151 @@ function createEmployeeCards() {
             <div class="name">${emp.name}</div>
             <div class="stat-label">
                 <span>Sanity</span>
-                <span id="emp-sanity-${index}">50%</span>
+                <span class="emp-sanity">50%</span>
             </div>
             <div class="stat-bar">
-                <div class="stat-fill sanity-fill" id="emp-sanity-bar-${index}" style="width: 50%"></div>
+                <div class="stat-fill sanity-fill emp-sanity-bar" style="width: 50%"></div>
             </div>
             <div class="stat-label">
                 <span>Productivity</span>
-                <span id="emp-prod-${index}">50%</span>
+                <span class="emp-prod">50%</span>
             </div>
             <div class="stat-bar">
-                <div class="stat-fill productivity-fill" id="emp-prod-bar-${index}" style="width: 50%"></div>
+                <div class="stat-fill productivity-fill emp-prod-bar" style="width: 50%"></div>
             </div>
-            <div class="status" id="emp-status-${index}">Working</div>
+            <div class="status emp-status">Working</div>
         `;
         employeeList.appendChild(card);
+        
+        employeeCards.push({
+            card,
+            sanityText: card.querySelector('.emp-sanity'),
+            sanityBar: card.querySelector('.emp-sanity-bar'),
+            prodText: card.querySelector('.emp-prod'),
+            prodBar: card.querySelector('.emp-prod-bar'),
+            status: card.querySelector('.emp-status'),
+            border: '',
+        });
     });
+    
+    refreshEmployeeDeck(true);
+}
+
+function statusTextFor(employee) {
+    switch (employee.state) {
+        case EMPLOYEE_STATE.WORKING: return '📞 Working';
+        case EMPLOYEE_STATE.FEARFUL: return '😰 Fearful';
+        case EMPLOYEE_STATE.FORCED_WORKING: return '😓 Forced Work';
+        case EMPLOYEE_STATE.WALKING_TO_COFFEE: return '🚶 → Coffee';
+        case EMPLOYEE_STATE.WALKING_TO_BATHROOM: return '🚶 → Bathroom';
+        case EMPLOYEE_STATE.ON_COFFEE_BREAK: return '☕ Coffee Break';
+        case EMPLOYEE_STATE.ON_BATHROOM_BREAK: return '🚻 Bathroom Break';
+        case EMPLOYEE_STATE.WALKING_BACK: return '🚶 Returning';
+        default: return 'Working';
+    }
 }
 
 function updateEmployeeCards() {
     game.employees.forEach((emp, index) => {
-        const sanityText = document.getElementById(`emp-sanity-${index}`);
-        const sanityBar = document.getElementById(`emp-sanity-bar-${index}`);
-        const prodText = document.getElementById(`emp-prod-${index}`);
-        const prodBar = document.getElementById(`emp-prod-bar-${index}`);
-        const status = document.getElementById(`emp-status-${index}`);
-        const card = document.getElementById(`emp-card-${index}`);
+        const refs = employeeCards[index];
+        if (!refs) return;
         
-        if (!sanityText) return;
-        
-        // Update values
         const sanity = Math.floor(emp.sanity);
         const prod = Math.floor(emp.productivity);
         
-        sanityText.textContent = `${sanity}%`;
-        sanityBar.style.width = `${sanity}%`;
-        prodText.textContent = `${prod}%`;
-        prodBar.style.width = `${prod}%`;
-        
-        // Update status text
-        let statusText = 'Working';
-        switch (emp.state) {
-            case EMPLOYEE_STATE.WORKING:
-                statusText = '📞 Working';
-                break;
-            case EMPLOYEE_STATE.FEARFUL:
-                statusText = '😰 Fearful';
-                break;
-            case EMPLOYEE_STATE.FORCED_WORKING:
-                statusText = '😓 Forced Work';
-                break;
-            case EMPLOYEE_STATE.WALKING_TO_COFFEE:
-                statusText = '🚶 → Coffee';
-                break;
-            case EMPLOYEE_STATE.WALKING_TO_BATHROOM:
-                statusText = '🚶 → Bathroom';
-                break;
-            case EMPLOYEE_STATE.ON_COFFEE_BREAK:
-                statusText = '☕ Coffee Break';
-                break;
-            case EMPLOYEE_STATE.ON_BATHROOM_BREAK:
-                statusText = '🚻 Bathroom Break';
-                break;
-            case EMPLOYEE_STATE.WALKING_BACK:
-                statusText = '🚶 Returning';
-                break;
-        }
-        status.textContent = statusText;
+        refs.sanityText.textContent = `${sanity}%`;
+        refs.sanityBar.style.width = `${sanity}%`;
+        refs.prodText.textContent = `${prod}%`;
+        refs.prodBar.style.width = `${prod}%`;
+        refs.status.textContent = statusTextFor(emp);
         
         // Highlight card based on sanity
+        let border = 'none';
         if (sanity >= CONFIG.employee.sanityCriticalThreshold) {
-            card.style.borderLeft = '3px solid #ef4444';
+            border = '3px solid #ef4444';
         } else if (sanity >= CONFIG.employee.sanityWarningThreshold) {
-            card.style.borderLeft = '3px solid #fbbf24';
-        } else {
-            card.style.borderLeft = 'none';
+            border = '3px solid #fbbf24';
+        }
+        if (border !== refs.border) {
+            refs.card.style.borderLeft = border;
+            refs.border = border;
         }
     });
+    
+    refreshEmployeeDeck();
+}
+
+/**
+ * How much attention each employee deserves right now. Anyone about to snap
+ * comes first however far away they are; after that it is whoever the manager
+ * is closest to, since those are the people a tap can actually reach.
+ */
+function deckPriority(employee) {
+    const manager = game.manager;
+    const dx = manager.x - employee.x;
+    const dy = manager.y - employee.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const critical = employee.sanity >= CONFIG.employee.sanityCriticalThreshold;
+    
+    // Distance beats everything else, with a big head start for the desperate
+    return distance - (critical ? 100000 : 0);
+}
+
+/**
+ * On a wide screen every employee has a card and the panel is a list. On a
+ * phone there is no column to put them in, so the panel becomes a deck: only
+ * the nearest couple of people are dealt face up, and the rest of the floor
+ * reads its stats off the plates over their heads instead.
+ *
+ * @param {boolean} [force] rebuild even if the cast has not changed
+ */
+function refreshEmployeeDeck(force = false) {
+    if (!game || !employeeCards.length) return;
+    
+    const compact = document.body.classList.contains('compact-layout');
+    
+    if (!compact) {
+        if (force || deckMembers !== 'all') {
+            employeeCards.forEach(refs => {
+                refs.card.classList.remove('hidden');
+                refs.card.style.order = '';
+            });
+            if (panelCount) panelCount.textContent = '';
+            deckMembers = 'all';
+        }
+        return;
+    }
+    
+    // Re-dealing the deck every frame would make it flicker as two employees
+    // trade places, so settle it a few times a second
+    const now = performance.now();
+    if (!force && now - deckCheckedAt < 250) return;
+    deckCheckedAt = now;
+    
+    // A landscape phone has room for one card and no more
+    const configured = Math.max(1, (CONFIG.ui && CONFIG.ui.deckCardCount) || 2);
+    const count = window.innerHeight <= 430 ? 1 : configured;
+    const ranked = game.employees
+        .map((employee, index) => ({ index, priority: deckPriority(employee) }))
+        .sort((a, b) => a.priority - b.priority)
+        .slice(0, count);
+    
+    const key = ranked.map(entry => entry.index).join(',');
+    if (!force && key === deckMembers) return;
+    deckMembers = key;
+    
+    const shown = new Set(ranked.map(entry => entry.index));
+    employeeCards.forEach((refs, index) => {
+        refs.card.classList.toggle('hidden', !shown.has(index));
+        refs.card.style.order = '';
+    });
+    ranked.forEach((entry, rank) => {
+        employeeCards[entry.index].card.style.order = String(rank);
+    });
+    
+    if (panelCount) {
+        panelCount.textContent = `nearest ${shown.size} of ${game.employees.length}`;
+    }
 }
 
 // ============================================
@@ -355,6 +567,7 @@ function stopEndAnimation() {
 
 function showWinScreen() {
     cancelAnimationFrame(animationFrameId);
+    if (touchControls) touchControls.reset();
     showScreen('win-screen');
     
     // The manager, insufferably pleased with himself
@@ -378,6 +591,7 @@ function showWinScreen() {
 
 function showLoseScreen() {
     cancelAnimationFrame(animationFrameId);
+    if (touchControls) touchControls.reset();
     showScreen('lose-screen');
     
     document.getElementById('lose-reason').textContent = game.gameOverReason;
@@ -491,6 +705,9 @@ window.addEventListener('load', () => {
     configSpeed.value = CONFIG.game.speedMultiplier;
     configSpeed.min = CONFIG.game.minSpeedMultiplier;
     configSpeed.max = CONFIG.game.maxSpeedMultiplier;
+    
+    // Pick the layout the screen can actually hold before anything is drawn
+    applyLayoutClasses();
     
     // Show main menu
     showScreen('main-menu');

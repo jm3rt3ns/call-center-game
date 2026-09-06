@@ -163,6 +163,19 @@ class Office {
         this.offsetY = (this.height - drawnHeight) / 2 + this.wallHeight();
     }
 
+    /**
+     * The window changed size (a phone rotating counts), so refit the view to
+     * the new canvas. Everything downstream reads tileWidth/offset each frame,
+     * so nothing else has to be rebuilt - only the cached scene bounds, which
+     * were measured in the old scale.
+     */
+    resize(width, height) {
+        this.width = width;
+        this.height = height;
+        this._sceneBounds = null;
+        this.fitView();
+    }
+
     wallHeightFor(scale) {
         return 25 * scale;
     }
@@ -351,7 +364,11 @@ class Office {
         return this._sceneBounds;
     }
     
-    render(ctx) {
+    /**
+     * @param {number} [viewZoom] what the camera will magnify this by, so the
+     *   room labels can stay the same size on screen however far it zooms in.
+     */
+    render(ctx, viewZoom = 1) {
         // Draw floor with isometric perspective
         this.renderIsometricFloor(ctx);
         
@@ -365,7 +382,7 @@ class Office {
         this.renderBathroomStall(ctx);
         
         // Draw room labels
-        this.renderLabels(ctx);
+        this.renderLabels(ctx, viewZoom);
     }
     
     renderIsometricFloor(ctx) {
@@ -674,9 +691,15 @@ class Office {
         ctx.fillText('🚻', x, y + 10);
     }
     
-    renderLabels(ctx) {
+    renderLabels(ctx, viewZoom = 1) {
+        // These are signage, not scenery: they should read at the same size
+        // whatever the camera is doing, so a phone's tight zoom doesn't blow
+        // "BREAK ROOM" up across the whole floor
+        const zoom = viewZoom > 0 ? viewZoom : 1;
+        const size = Math.max(6, Math.round(12 * this.scale * Math.max(1, 1 / zoom) * 10) / 10);
+        
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = `bold ${Math.max(9, Math.round(12 * this.scale))}px monospace`;
+        ctx.font = `bold ${Math.max(9 / zoom, size)}px monospace`;
         ctx.textAlign = 'center';
 
         for (const label of this.roomLabels) {

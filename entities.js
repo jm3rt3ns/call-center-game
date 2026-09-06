@@ -435,28 +435,128 @@ class Employee {
             this.drawPixelEmployee(ctx, screenX, screenY);
         }
         
-        // Draw sanity indicator (small bar above)
+        const headroom = usedSprite ? this.animator.drawnHeightAboveGround + 6 : 28;
+        
+        // The people who matter right now carry their whole card over their
+        // head - on a phone there is no side panel to read them from
+        if (this.showsOverheadCard(game)) {
+            this.drawOverheadCard(ctx, screenX, screenY - headroom);
+        } else {
+            this.drawSanityBar(ctx, screenX, screenY - headroom);
+        }
+        
+        ctx.restore();
+    }
+    
+    /**
+     * Whose stats float over their head: whoever the manager is standing near,
+     * and anyone close enough to snapping that you want to know wherever they
+     * are on the floor.
+     */
+    showsOverheadCard(game) {
+        const ui = CONFIG.ui || {};
+        if (ui.overheadAlwaysCritical !== false &&
+            this.sanity >= CONFIG.employee.sanityCriticalThreshold) {
+            return true;
+        }
+        
+        if (!game || !game.manager) return false;
+        const radius = ui.overheadLabelRadius || 0;
+        if (radius <= 0) return false;
+        
+        const dx = game.manager.x - this.x;
+        const dy = game.manager.y - this.y;
+        return dx * dx + dy * dy <= radius * radius;
+    }
+    
+    drawSanityBar(ctx, x, y) {
         const barWidth = 20;
         const barHeight = 3;
-        const headroom = usedSprite ? this.animator.drawnHeightAboveGround + 6 : 28;
-        const barY = screenY - headroom;
         
         // Background
         ctx.fillStyle = '#222';
-        ctx.fillRect(screenX - barWidth / 2, barY, barWidth, barHeight);
+        ctx.fillRect(x - barWidth / 2, y, barWidth, barHeight);
         
         // Sanity fill (green to red)
         const sanityPercent = this.sanity / 100;
         const hue = (1 - sanityPercent) * 120;
         ctx.fillStyle = `hsl(${hue}, 80%, 50%)`;
-        ctx.fillRect(screenX - barWidth / 2, barY, barWidth * sanityPercent, barHeight);
+        ctx.fillRect(x - barWidth / 2, y, barWidth * sanityPercent, barHeight);
         
         // Border
         ctx.strokeStyle = '#444';
         ctx.lineWidth = 1;
-        ctx.strokeRect(screenX - barWidth / 2, barY, barWidth, barHeight);
+        ctx.strokeRect(x - barWidth / 2, y, barWidth, barHeight);
+    }
+    
+    /**
+     * Name, insanity, productivity and what they are doing, in a small pixel
+     * plate above the sprite. Same information the side panel carries, put
+     * where you are already looking.
+     */
+    drawOverheadCard(ctx, x, y) {
+        const width = 46;
+        const height = 25;
+        const left = x - width / 2;
+        const top = y - height;
+        const critical = this.sanity >= CONFIG.employee.sanityCriticalThreshold;
+        const warning = this.sanity >= CONFIG.employee.sanityWarningThreshold;
+        
+        ctx.save();
+        
+        // Plate
+        ctx.fillStyle = 'rgba(10, 10, 20, 0.82)';
+        ctx.fillRect(left, top, width, height);
+        ctx.strokeStyle = critical ? '#ef4444' : (warning ? '#fbbf24' : 'rgba(148, 163, 184, 0.7)');
+        ctx.lineWidth = 1;
+        ctx.strokeRect(left + 0.5, top + 0.5, width - 1, height - 1);
+        
+        // Name, with the state's emblem beside it
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = 'bold 7px monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(this.name.slice(0, 8), left + 3, top + 3);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText(this.overheadStateMark(), left + width - 3, top + 3);
+        
+        // Insanity, then productivity
+        this.drawOverheadBar(ctx, left + 3, top + 12, width - 6, 4,
+                             this.sanity / 100,
+                             `hsl(${(1 - this.sanity / 100) * 120}, 80%, 50%)`);
+        this.drawOverheadBar(ctx, left + 3, top + 18, width - 6, 4,
+                             this.productivity / 100, '#60a5fa');
         
         ctx.restore();
+    }
+    
+    drawOverheadBar(ctx, x, y, width, height, fraction, color) {
+        const filled = Math.max(0, Math.min(1, fraction));
+        ctx.fillStyle = '#1f2937';
+        ctx.fillRect(x, y, width, height);
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, width * filled, height);
+    }
+    
+    /** One character for what they are up to, so the plate stays small. */
+    overheadStateMark() {
+        switch (this.state) {
+            case EMPLOYEE_STATE.WALKING_TO_COFFEE:
+            case EMPLOYEE_STATE.ON_COFFEE_BREAK:
+                return 'COF';
+            case EMPLOYEE_STATE.WALKING_TO_BATHROOM:
+            case EMPLOYEE_STATE.ON_BATHROOM_BREAK:
+                return 'WC';
+            case EMPLOYEE_STATE.WALKING_BACK:
+                return 'RET';
+            case EMPLOYEE_STATE.FEARFUL:
+                return 'FEAR';
+            case EMPLOYEE_STATE.FORCED_WORKING:
+                return 'FRCD';
+            default:
+                return 'CALL';
+        }
     }
     
     drawPixelEmployee(ctx, x, y) {
@@ -586,6 +686,11 @@ class Manager {
         this.moveLeft = false;
         this.moveRight = false;
         
+        // Analog input from the touch stick, as a world-space direction whose
+        // length is how hard it is being pushed
+        this.analogX = 0;
+        this.analogY = 0;
+        
         // Sprite pack playback. Falls back to the procedural pixel drawing
         // below when no pack is assigned to the 'manager' actor.
         this.animator = new SpriteAnimator(
@@ -611,11 +716,18 @@ class Manager {
         if (this.moveLeft) this.velocityX -= 1;
         if (this.moveRight) this.velocityX += 1;
         
-        // Normalize diagonal movement
-        if (this.velocityX !== 0 && this.velocityY !== 0) {
-            const factor = 1 / Math.sqrt(2);
-            this.velocityX *= factor;
-            this.velocityY *= factor;
+        // The stick adds to the keys rather than replacing them, so a phone
+        // with a keyboard attached can use either without them fighting
+        this.velocityX += this.analogX;
+        this.velocityY += this.analogY;
+        
+        // Diagonals, and a stick pushed past the rim, would otherwise outrun a
+        // straight line. A half-pushed stick keeps its half speed.
+        const magnitude = Math.sqrt(this.velocityX * this.velocityX +
+                                    this.velocityY * this.velocityY);
+        if (magnitude > 1) {
+            this.velocityX /= magnitude;
+            this.velocityY /= magnitude;
         }
         
         // Apply speed
@@ -635,6 +747,12 @@ class Manager {
         this.y = Math.max(this.size, Math.min(game.office.worldHeight - this.size, this.y));
         
         this.updateAnimation(deltaTime, seconds, this.x - previousX, this.y - previousY);
+    }
+    
+    /** Point the manager with the touch stick. (0, 0) lets go. */
+    setAnalogMove(x, y) {
+        this.analogX = x;
+        this.analogY = y;
     }
     
     /**

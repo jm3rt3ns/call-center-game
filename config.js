@@ -151,7 +151,29 @@ const CONFIG = {
     camera: {
         // How much closer than the old full-office view. 1 = the original
         // framing, 1.75 sits between a comfortable 1.5x and a tight 2x.
+        // Only used when autoZoom is off - otherwise it is the ceiling the
+        // automatic zoom works back from.
         zoom: 1.75,
+
+        // A phone fits the whole floor plan into a few hundred pixels, which
+        // leaves tiles the size of a fingernail. Rather than pick a zoom per
+        // device, aim for a tile that is always a readable size on screen and
+        // let the zoom fall out of it: the office already scaled itself to fit
+        // the canvas, so this scales it back up to something you can see.
+        autoZoom: true,
+        tileTarget: {
+            // Wanted on-screen tile width, as a fraction of the smaller side
+            // of the view, clamped to these pixel bounds.
+            fraction: 0.115,
+            min: 40,
+            max: 70,
+        },
+        minZoom: 1,
+        maxZoom: 6,
+
+        // How far a pinch is allowed to push the automatic zoom either way
+        minUserZoom: 0.6,
+        maxUserZoom: 2.2,
         
         // How hard the camera pulls toward the boss, per second. Higher is
         // snappier, lower drifts along behind him.
@@ -159,15 +181,38 @@ const CONFIG = {
         
         // Screen pixels he can wander from the centre before the camera
         // bothers to move - keeps small shuffles from sliding the office.
-        deadzoneX: 40,
-        deadzoneY: 24,
+        deadzoneX: 70,
+        deadzoneY: 42,
         
         // Seconds of his movement to lead by, so the view opens up ahead of
         // him rather than behind
         lookAheadSeconds: 0.35,
         
         // Screen pixels to lift the focus off his feet, framing his body
-        focusOffsetY: -28,
+        focusOffsetY: -48,
+    },
+
+    // ============================================
+    // INPUT
+    // ============================================
+    input: {
+        // Drag anywhere on the floor to steer. The stick appears where the
+        // finger lands and the manager runs in the direction it is pushed.
+        joystickRadius: 56,         // CSS px from the stick's centre to full tilt
+        joystickDeadzone: 0.18,     // Fraction of the radius that reads as "no input"
+
+        // A press that neither travels far nor lasts long is a tap, not a drag
+        tapMaxTravel: 14,           // CSS px
+        tapMaxDurationMs: 300,
+
+        // How close a tap has to land to an employee to pick them, in CSS px.
+        // Fingers are blunt, so this is deliberately larger than the sprite.
+        tapRadius: 44,
+
+        // How far the manager's voice carries when you tap someone back to
+        // their desk, in world pixels. Matches his fear aura, so the rule is
+        // the same one the game already draws on the floor.
+        tapSendBackRadius: 80,
     },
 
     // ============================================
@@ -208,6 +253,16 @@ const CONFIG = {
     ui: {
         updateInterval: 100,        // UI update frequency in ms
         animationSpeed: 1,          // Animation multiplier
+
+        // There is no room for a column of employee cards on a phone, so the
+        // panel becomes a deck holding only the people who matter right now -
+        // the ones nearest the manager, with anyone critical pulled forward.
+        deckCardCount: 2,
+
+        // Everyone the manager is standing near, and everyone about to snap,
+        // carries their name and bars over their head instead.
+        overheadLabelRadius: 140,   // World pixels from the manager
+        overheadAlwaysCritical: true,
     },
 
     // ============================================

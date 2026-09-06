@@ -35,6 +35,14 @@ class Game {
         this.collidingEmployee = null;
         this.showCollisionPrompt = false;
         
+        // Every employee the manager could shout at right now, so touch players
+        // can see what a tap would land on before they try it
+        this.reachableEmployees = [];
+        
+        // A short-lived ring where the last tap landed, telling the player
+        // whether it took
+        this.tapFeedback = null;
+        
         // Timing
         this.lastTime = 0;
         this.deltaTime = 0;     // Simulation delta - real delta x speedMultiplier
@@ -65,6 +73,8 @@ class Game {
         // Set canvas size
         this.canvas.width = CONFIG.office.canvasWidth;
         this.canvas.height = CONFIG.office.canvasHeight;
+        this.canvas.style.width = `${CONFIG.office.canvasWidth}px`;
+        this.canvas.style.height = `${CONFIG.office.canvasHeight}px`;
         
         // Keep pixel art crisp - no smoothing when sprites are scaled up
         this.ctx.imageSmoothingEnabled = false;
@@ -99,6 +109,28 @@ class Game {
             bathroomsClosed: 0,
             employeesSentBack: 0,
         };
+    }
+    
+    /**
+     * Refit everything to a new canvas size - a rotated phone, a resized
+     * window, the address bar sliding away. The office rescales its tiles, and
+     * the camera picks a zoom that keeps them readable on the new screen.
+     */
+    resize(width, height) {
+        const canvasWidth = Math.max(1, Math.round(width));
+        const canvasHeight = Math.max(1, Math.round(height));
+        
+        CONFIG.office.canvasWidth = canvasWidth;
+        CONFIG.office.canvasHeight = canvasHeight;
+        
+        this.canvas.width = canvasWidth;
+        this.canvas.height = canvasHeight;
+        this.canvas.style.width = `${canvasWidth}px`;
+        this.canvas.style.height = `${canvasHeight}px`;
+        this.ctx.imageSmoothingEnabled = false;
+        
+        if (this.office) this.office.resize(canvasWidth, canvasHeight);
+        if (this.camera) this.camera.resize(canvasWidth, canvasHeight, this.office);
     }
     
     createEmployees() {
@@ -159,6 +191,13 @@ class Game {
         
         // Check for manager-employee collisions
         this.checkCollisions();
+        
+        // Fade out the last tap - wall-clock, so it reads the same at any
+        // simulation speed
+        if (this.tapFeedback) {
+            this.tapFeedback.age += this.realDeltaTime;
+            if (this.tapFeedback.age > 600) this.tapFeedback = null;
+        }
     }
     
     updateGameTime() {
@@ -217,14 +256,97 @@ class Game {
     checkCollisions() {
         this.collidingEmployee = null;
         this.showCollisionPrompt = false;
+        this.reachableEmployees = [];
         
         for (const employee of this.employees) {
-            if (employee.isWalking() && this.manager.checkCollisionWithEmployee(employee)) {
+            if (!employee.isWalking()) continue;
+            
+            if (this.isWithinShoutingDistance(employee)) {
+                this.reachableEmployees.push(employee);
+            }
+            
+            if (!this.collidingEmployee && this.manager.checkCollisionWithEmployee(employee)) {
                 this.collidingEmployee = employee;
                 this.showCollisionPrompt = true;
-                break;
             }
         }
+    }
+    
+    /**
+     * Tapping someone back to their desk still costs you the walk over: the
+     * manager has to be inside the aura he already casts on the floor, so a
+     * finger is a shortcut past the fiddly collide-then-press, not past the
+     * positioning the game is about.
+     */
+    isWithinShoutingDistance(employee) {
+        const reach = (CONFIG.input && CONFIG.input.tapSendBackRadius)
+            || CONFIG.employee.managerProximityRadius;
+        const dx = this.manager.x - employee.x;
+        const dy = this.manager.y - employee.y;
+        return dx * dx + dy * dy <= reach * reach;
+    }
+    
+    /**
+     * Which employee a point on the canvas picks, if any. Works in the scene's
+     * own coordinates - the camera converts the tap for us - and searches by
+     * on-screen distance so the isometric squash doesn't skew the hit area.
+     */
+    employeeAtScene(sceneX, sceneY) {
+        const tapRadius = (CONFIG.input && CONFIG.input.tapRadius) || 44;
+        // The tap radius is a finger, measured on the screen, so it shrinks in
+        // scene space as the view zooms in
+        const radius = tapRadius / (this.camera ? this.camera.zoom : 1);
+        
+        let best = null;
+        let bestDistance = radius * radius;
+        
+        for (const employee of this.employees) {
+            const screen = this.office.worldToScreen(employee.x, employee.y);
+            // Aim at the body rather than the feet
+            const dx = sceneX - screen.x;
+            const dy = sceneY - (screen.y - 16 * this.office.scale);
+            const distance = dx * dx + dy * dy;
+            if (distance <= bestDistance) {
+                bestDistance = distance;
+                best = employee;
+            }
+        }
+        
+        return best;
+    }
+    
+    /**
+     * A tap on the floor. Sends the employee under the finger back to their
+     * desk when the manager is close enough, and says so on screen either way.
+     * @returns {boolean} whether anyone was sent back
+     */
+    handleTap(sceneX, sceneY) {
+        if (this.state !== GAME_STATE.PLAYING) return false;
+        
+        const employee = this.employeeAtScene(sceneX, sceneY);
+        const sent = !!employee
+            && employee.isWalking()
+            && this.isWithinShoutingDistance(employee)
+            && this.sendEmployeeBack(employee);
+        
+        // A tap on bare floor is not a failed order, so it gets no verdict -
+        // only a tap that picked somebody says whether it carried
+        if (!employee) return false;
+        
+        const at = this.office.worldToScreen(employee.x, employee.y);
+        this.tapFeedback = {
+            x: at.x,
+            y: at.y,
+            age: 0,
+            ok: sent,
+            message: sent ? null : (employee.isWalking() ? 'Too far away' : 'Already working'),
+        };
+        
+        if (!sent && typeof soundManager !== 'undefined') {
+            soundManager.playClickSound();
+        }
+        
+        return sent;
     }
     
     checkEndConditions() {
@@ -325,20 +447,29 @@ class Game {
         });
     }
     
-    sendEmployeeBack() {
-        if (this.collidingEmployee && this.collidingEmployee.isWalking()) {
-            this.collidingEmployee.sendBackToDesk(this);
-            this.stats.employeesSentBack++;
+    /**
+     * Send someone back to their desk - the one the manager has walked into by
+     * default, or whoever a tap picked out.
+     * @returns {boolean} whether it took
+     */
+    sendEmployeeBack(employee = this.collidingEmployee) {
+        if (!employee || !employee.isWalking()) return false;
+        
+        employee.sendBackToDesk(this);
+        this.stats.employeesSentBack++;
+        if (this.collidingEmployee === employee) {
             this.collidingEmployee = null;
             this.showCollisionPrompt = false;
-            
-            this.manager.playReaction(SPRITE_ROLE.COMMAND);
-            
-            // Play send back sound
-            if (typeof soundManager !== 'undefined') {
-                soundManager.playSendBackSound();
-            }
         }
+        
+        this.manager.playReaction(SPRITE_ROLE.COMMAND);
+        
+        // Play send back sound
+        if (typeof soundManager !== 'undefined') {
+            soundManager.playSendBackSound();
+        }
+        
+        return true;
     }
     
     addRevenue(amount) {
@@ -358,10 +489,13 @@ class Game {
         if (this.camera) this.camera.apply(this.ctx);
         
         // Render office
-        this.office.render(this.ctx);
+        this.office.render(this.ctx, this.camera ? this.camera.zoom : 1);
         
         // Render ability indicators
         this.renderAbilityIndicators();
+        
+        // Ring the people a tap would reach, under their feet
+        this.renderReachableMarkers();
         
         // Render characters back to front so the ones in front overlap
         // the ones behind them
@@ -371,6 +505,9 @@ class Game {
         if (this.showCollisionPrompt) {
             this.renderCollisionPrompt();
         }
+        
+        // Say where the last tap landed and whether it took
+        this.renderTapFeedback();
         
         if (this.camera) this.camera.release(this.ctx);
         
@@ -460,6 +597,56 @@ class Game {
         }
     }
     
+    /**
+     * A flattened ring on the floor under everyone within shouting distance -
+     * on touch it is the "tap me" affordance, on a keyboard it shows how far
+     * the manager's reach extends.
+     */
+    renderReachableMarkers() {
+        if (!this.reachableEmployees.length) return;
+        
+        const flatten = CONFIG.office.tileHeight / CONFIG.office.tileWidth;
+        const pulse = Math.sin(Date.now() / 260) * 0.15 + 0.55;
+        const radius = 16 * this.office.scale;
+        
+        this.ctx.save();
+        this.ctx.lineWidth = 2;
+        for (const employee of this.reachableEmployees) {
+            const screen = this.office.worldToScreen(employee.x, employee.y);
+            this.ctx.beginPath();
+            this.ctx.ellipse(screen.x, screen.y, radius, radius * flatten, 0, 0, Math.PI * 2);
+            this.ctx.strokeStyle = `rgba(250, 204, 21, ${pulse})`;
+            this.ctx.stroke();
+        }
+        this.ctx.restore();
+    }
+    
+    renderTapFeedback() {
+        const feedback = this.tapFeedback;
+        if (!feedback) return;
+        
+        const t = Math.min(1, feedback.age / 600);
+        const alpha = 1 - t;
+        const flatten = CONFIG.office.tileHeight / CONFIG.office.tileWidth;
+        const radius = (10 + t * 26) * this.office.scale;
+        const color = feedback.ok ? '74, 222, 128' : '248, 113, 113';
+        
+        this.ctx.save();
+        this.ctx.beginPath();
+        this.ctx.ellipse(feedback.x, feedback.y, radius, radius * flatten, 0, 0, Math.PI * 2);
+        this.ctx.strokeStyle = `rgba(${color}, ${alpha})`;
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+        
+        if (feedback.message) {
+            this.ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+            this.ctx.font = 'bold 11px monospace';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(feedback.message, feedback.x, feedback.y - 40 - t * 10);
+        }
+        this.ctx.restore();
+    }
+    
     renderCollisionPrompt() {
         // Get manager's isometric position
         const managerScreen = this.office.worldToScreen(this.manager.x, this.manager.y);
@@ -476,7 +663,10 @@ class Game {
         this.ctx.fillStyle = '#fff';
         this.ctx.font = 'bold 11px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('Press [SPACE] to', managerScreen.x, managerScreen.y - 55);
+        const verb = (typeof isTouchDevice === 'function' && isTouchDevice())
+            ? 'Tap them to'
+            : 'Press [SPACE] to';
+        this.ctx.fillText(verb, managerScreen.x, managerScreen.y - 55);
         this.ctx.fillText('send back to desk', managerScreen.x, managerScreen.y - 40);
     }
     
