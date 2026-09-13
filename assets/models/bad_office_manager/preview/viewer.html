@@ -1,0 +1,161 @@
+<meta charset="utf-8">
+<style>
+  body { margin:0; background:#15171d; }
+  canvas { display:block; }
+</style>
+<canvas id="sheet"></canvas>
+<script type="importmap">
+{ "imports": {
+    "three": "/node_modules/three/build/three.module.js",
+    "three/addons/": "/node_modules/three/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const TILE_W = 230, TILE_H = 300;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(1);
+renderer.setSize(TILE_W, TILE_H);
+renderer.setClearColor(0x000000, 0);
+
+const scene = new THREE.Scene();
+
+// Spec §9.1: cool blue-purple office, warm amber accents. Light it the way the
+// game would so the silhouette is judged under real conditions.
+scene.add(new THREE.HemisphereLight(0xaab4d6, 0x2a2320, 2.2));
+const key = new THREE.DirectionalLight(0xfff0dd, 2.6);
+key.position.set(3.5, 5.5, -5);   // in front of him; he faces -Z
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x8899cc, 1.4);
+rim.position.set(-4, 3, 5);      // behind, to pop the silhouette edge
+scene.add(rim);
+
+const camera = new THREE.PerspectiveCamera(30, TILE_W / TILE_H, 0.1, 100);
+
+const loader = new GLTFLoader();
+const gltf = await loader.loadAsync('/model.glb');
+const model = gltf.scene;
+scene.add(model);
+
+const mixer = new THREE.AnimationMixer(model);
+const clips = gltf.animations;
+
+// Report what actually came out of the file, so the render doubles as a check
+// on the container rather than just a picture.
+const report = {
+  animations: clips.map(c => ({ name: c.name, duration: +c.duration.toFixed(3), tracks: c.tracks.length })),
+  bones: [],
+  meshes: [],
+};
+model.traverse(o => {
+  if (o.isBone) report.bones.push(o.name);
+  if (o.isSkinnedMesh) {
+    o.frustumCulled = false;
+    const g = o.geometry;
+    report.meshes.push({
+      name: o.name,
+      vertices: g.attributes.position.count,
+      triangles: g.index.count / 3,
+      hasUV: !!g.attributes.uv,
+      hasSkin: !!g.attributes.skinIndex && !!g.attributes.skinWeight,
+      skinBones: o.skeleton ? o.skeleton.bones.length : 0,
+      texture: o.material.map ? `${o.material.map.image.width}x${o.material.map.image.height}` : null,
+    });
+  }
+});
+
+function frame(yaw, pitch = 0.10, height = 0.95, dist = 5.2) {
+  // The model faces -Z, so yaw 0 must put the camera in front of him at -Z.
+  const a = yaw + Math.PI;
+  camera.position.set(
+    Math.sin(a) * dist * Math.cos(pitch),
+    height + Math.sin(pitch) * dist,
+    Math.cos(a) * dist * Math.cos(pitch));
+  camera.lookAt(0, height, 0);
+}
+
+function poseAt(clip, t) {
+  mixer.stopAllAction();
+  model.updateMatrixWorld(true);
+  const action = mixer.clipAction(clip);
+  action.reset();
+  action.play();
+  mixer.setTime(0);
+  mixer.setTime(t);
+}
+
+function rest() {
+  mixer.stopAllAction();
+  gltf.scene.traverse(o => { if (o.isBone) { /* leave bind pose */ } });
+  mixer.setTime(0);
+}
+
+const sheet = document.getElementById('sheet');
+const ctx = sheet.getContext('2d');
+
+function label(text, x, y, size = 13, colour = '#e8ecf4') {
+  ctx.font = `${size}px ui-monospace, Menlo, monospace`;
+  ctx.fillStyle = colour;
+  ctx.fillText(text, x, y);
+}
+
+async function draw(mode) {
+  if (mode === 'closeup') {
+    const W = 460, H = 560;
+    renderer.setSize(W, H);
+    camera.aspect = W / H; camera.updateProjectionMatrix();
+    const views = [['front torso', 0], ['3/4 torso', Math.PI * 0.3], ['head', 0]];
+    sheet.width = W * views.length; sheet.height = H + 26;
+    ctx.fillStyle = '#15171d'; ctx.fillRect(0, 0, sheet.width, sheet.height);
+    rest();
+    views.forEach(([name, yaw], i) => {
+      if (name === 'head') frame(yaw, 0.02, 1.70, 1.15); else frame(yaw, 0.03, 1.30, 2.1);
+      renderer.render(scene, camera);
+      ctx.drawImage(renderer.domElement, i * W, 22);
+      label(name, i * W + 10, 16);
+    });
+    renderer.setSize(TILE_W, TILE_H);
+    camera.aspect = TILE_W / TILE_H; camera.updateProjectionMatrix();
+    return;
+  }
+  if (mode === 'turnaround') {
+    const views = [['front', 0], ['3/4', Math.PI * 0.25], ['side', Math.PI * 0.5], ['back', Math.PI]];
+    sheet.width = TILE_W * views.length;
+    sheet.height = TILE_H + 26;
+    ctx.fillStyle = '#15171d';
+    ctx.fillRect(0, 0, sheet.width, sheet.height);
+    rest();
+    views.forEach(([name, yaw], i) => {
+      frame(yaw);
+      renderer.render(scene, camera);
+      ctx.drawImage(renderer.domElement, i * TILE_W, 22);
+      label(name, i * TILE_W + 10, 16);
+    });
+  } else {
+    const cols = 5;
+    sheet.width = TILE_W * cols;
+    sheet.height = (TILE_H + 26) * clips.length;
+    ctx.fillStyle = '#15171d';
+    ctx.fillRect(0, 0, sheet.width, sheet.height);
+    clips.forEach((clip, row) => {
+      const y = row * (TILE_H + 26);
+      label(`${clip.name}   ${clip.duration.toFixed(2)}s`, 10, y + 16, 14, '#ffd479');
+      for (let i = 0; i < cols; i++) {
+        const t = (clip.duration * i) / (cols - 1 || 1);
+        poseAt(clip, Math.min(t, clip.duration - 1e-4));
+        frame(Math.PI * 0.22);
+        renderer.render(scene, camera);
+        ctx.drawImage(renderer.domElement, i * TILE_W, y + 22);
+        label(`${t.toFixed(2)}s`, i * TILE_W + 10, y + 22 + TILE_H - 6, 11, '#8b93a6');
+      }
+    });
+  }
+}
+
+window.__draw = draw;
+window.__report = report;
+window.__ready = true;
+</script>

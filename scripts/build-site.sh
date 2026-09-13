@@ -12,6 +12,11 @@ mkdir -p "$site"
 cp index.html editor.html styles.css editor.css ./*.js "$site/"
 cp -R assets "$site/"
 
+# Source art for the 3D build (docs/3d-game-spec.md) - models, rigs, preview
+# renders. The browser game never loads any of it, so it has no business in the
+# upload; it is the single biggest thing in assets/ that nothing references.
+rm -rf "$site/assets/models"
+
 # The filenames are not content-hashed, so the code must revalidate on every
 # load. Sprite frames are effectively immutable once published, but keep their
 # TTL short enough that a redraw ships the same day.
