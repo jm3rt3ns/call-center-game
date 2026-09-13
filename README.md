@@ -157,3 +157,12 @@ Characters draw from sprite packs when one is assigned to them in
 `docs/hiring-a-pixel-artist.md` is where to find a freelance pixel artist and
 what to brief them with; `docs/artist-contract.md` is a fill-in-the-blanks
 commission contract that matches the pack spec.
+
+## The 3D version
+
+`docs/3d-game-spec.md` is a standalone, engine-agnostic specification for
+rebuilding this game in 3D - the whole simulation written out as rules and
+numbers rather than code, plus the design for its three camera modes
+(isometric with an orthographic camera, first person, and second person, where
+you watch yourself through an employee's eyes). It is written to be handed to a
+team who will never read this repository.
