@@ -2,140 +2,164 @@
 
 ![turnaround](preview/turnaround.png)
 
-`bad_office_manager.glb` is the player character from `docs/3d-game-spec.md`:
-a rigged, textured, animated glTF 2.0 binary carrying all nine manager
-animation roles. It is source art for the 3D build. **The shipped 2D game does
-not load it** — `scripts/build-site.sh` deletes `assets/models` from the deploy
-bundle on purpose.
-
-> `docs/3d-game-spec.md` is not on this branch yet — it lives on
-> `claude/inspiring-dijkstra-lobgy8`. Every section reference below (§4.3, §9.1,
-> §9.3 …) points at that document, and the paths resolve once it lands on `main`.
+`bad_office_manager.glb` is the player character from `docs/3d-game-spec.md`,
+built in Blender: a smooth, textured, rigged and animated glTF 2.0 binary with
+the full animation set from the concept sheet. It is source art for the 3D
+build. **The shipped 2D game does not load it** — `scripts/build-site.sh`
+deletes `assets/models` from the deploy bundle on purpose.
 
 | | |
 |---|---|
 | Format | glTF 2.0 binary (`.glb`), self-contained |
-| Size | 112 KB |
-| Geometry | 1152 vertices, 576 triangles, one mesh, one material |
-| Texture | 128×128 palette atlas, embedded, nearest-filtered |
-| Rig | 20 joints, rigid skinning (one joint per vertex) |
-| Animations | 9 clips, 14.5 s total |
-| Axes | Y up, faces −Z, +X is his left, feet on y=0, metres |
+| Geometry | `Manager` ~68k triangles (one skinned mesh, one material), `Lenses` (alpha-blended), `Mug` (rigid prop on the right hand) |
+| Textures | 2048² baked base-colour + roughness atlas, 1024×512 mug label, all PNG, embedded |
+| Rig | 23 joints, up to 4 influences per vertex, smooth (bone-heat) skinning |
+| Animations | 15 clips (below) |
+| Axes | Y up, **faces +Z** (glTF / three.js convention), +X is his left, feet on y = 0, metres |
+| Height | 1.85 m (spec §4.3); fits the ⌀1.10 m collision capsule |
 
-## Spec compliance
+![closeup](preview/closeup.png)
 
-`gen_manager_glb.py` asserts these on every run and fails if they drift:
-
-| Spec | Required | Actual |
-|---|---|---|
-| §4.3 height | 1.85 m | 1.850 m |
-| §4.3 collision capsule | fits within ⌀1.10 m | 0.920 m widest |
-| — | feet on the floor | y = 0.000 |
-| §9.3 red accent | present | maroon suspenders |
-| §9.3 roles | 9 manager roles | all 9 present |
-
-Proportions follow `docs/concept/bad-office-manager-concept-sheet.webp`: crew
-cut, glasses, blue short-sleeve shirt, X-back maroon suspenders, gold tie, dark
-slacks, watch on the left wrist. The concept sheet's 32×48 pixel grid does not
-apply here — that is a 2D sprite constraint.
-
-The spec's "must look *heavy*" (§9.3) is carried by the chest taper (0.43 m
-waist → 0.64 m chest), the traps, and deltoids that run out past the chest. Bulk
-in the silhouette, not in the polygon count.
+Proportions and wardrobe follow `docs/concept/bad-office-manager-concept-sheet.webp`:
+crew cut, rectangular glasses, heavy brow, square jaw, blue short-sleeve shirt
+with a breast pocket and pen, maroon suspenders crossing at the back, gold tie,
+black belt with a brass buckle, dark pinstriped slacks, black shoes, a watch on
+the left wrist and the NOT MY JOB mug in the right fist. The spec's "must look
+*heavy*" (§9.3) is in the silhouette — the traps, the deltoids that run out
+past the chest, and forearms as thick as his neck.
 
 ## Animations
 
 ![animations](preview/animations.png)
 
-| Clip | Length | Loop | Used for |
-|---|---|---|---|
-| `idle` | 2.60 s | yes | Standing still |
-| `walk` | 1.00 s | yes | Normal movement |
-| `run` | 0.62 s | yes | Sustained movement |
-| `angry` | 1.55 s | no | Dumping the coffee pot |
-| `slam` | 1.20 s | no | Closing the bathroom |
-| `command` | 1.30 s | no | Ordering someone back to their desk |
-| `celebrate` | 1.80 s | yes | Win ending |
-| `fall` | 1.50 s | no | Lose-on-target ending |
-| `dead` | 3.00 s | yes | Breakdown ending |
+The nine roles the spec asks for (§9.3) plus the rest of the concept sheet's
+list, so the 3D build has the same vocabulary as the 2D sprite pack.
+
+| Clip | Length | Loop | Spec role / sheet name | Source |
+|---|---|---|---|---|
+| `idle` | 2.60 s | yes | idle — standing, mug in hand | authored |
+| `walk` | 1.10 s | yes | walk | CMU mocap 02_01, retargeted |
+| `run` | 0.60 s | yes | run | CMU mocap 09_01, retargeted |
+| `walk_coffee` | 1.10 s | yes | walk with coffee | walk cycle, right arm holds the mug |
+| `talk` | 3.00 s | yes | talk / gesture (point, wave, hand on hip) | authored |
+| `angry` | 1.55 s | no | angry (yell) — dumping the coffee | authored |
+| `slam` | 1.20 s | no | slam desk — closing the bathroom | authored |
+| `arms_crossed` | 3.00 s | yes | arms crossed idle | authored |
+| `command` | 1.30 s | no | firing / pointing — ordering someone back | authored, index finger extended |
+| `hit` | 0.80 s | no | hit / react | authored |
+| `fall` | 1.50 s | no | fall / knocked down — lose-on-target ending | authored |
+| `get_up` | 1.50 s | no | get up | authored |
+| `celebrate` | 1.80 s | yes | victory / smug — win ending | authored |
+| `interact` | 2.50 s | no | interact (paperwork) | authored |
+| `dead` | 3.00 s | yes | die — breakdown ending | authored |
 
 Every one-shot ends with a 0.25 s hold on its final pose, per §9.3, so the
-reaction still reads if locomotion resumes immediately. `fall` ends exactly on
-`dead`'s first frame, so the two chain without a pop.
+reaction still reads if locomotion resumes immediately. `fall` ends on `dead`'s
+first frame, so the two chain without a pop.
 
-Clips carry no root motion — the manager is moved by code, not by the
-animation. The only translation authored is a vertical bob on `walk`/`run` and
-the drop in `fall`/`dead`.
+Clips carry no root motion — the manager is moved by code. The only translation
+authored is the vertical bob on `walk`/`run` (kept from the mocap) and the drop
+in `fall`/`dead`.
+
+The mug is a separate node parented to `hand_R`, so the engine can hide it for
+clips where a mug makes no sense (`angry`, `slam`, `arms_crossed`, `celebrate`,
+`fall`, `dead`). It is placed to sit upright in the fist in `idle`.
+
+### Mocap
+
+`blender/mocap/*.bvh` are two clips from the CMU Graphics Lab Motion Capture
+Database (subject 02 trial 01, a walk; subject 09 trial 01, a run) in the BVH
+conversion by Bruce Hahne. CMU releases the data for any use; see
+<https://mocap.cs.cmu.edu/>. The build finds one stride from each clip
+(autocorrelation of the left-minus-right foot signal), strips the horizontal
+root motion and retargets it by limb direction onto this rig, so the CMU
+skeleton's own proportions never leak into the manager's.
 
 ## Rig
 
 ```
-root                         on the floor between the feet
+root                           on the floor between the feet
 └─ hips
    ├─ spine ─ chest
    │  ├─ neck ─ head
-   │  ├─ clav_L ─ upperarm_L ─ forearm_L ─ hand_L
-   │  └─ clav_R ─ upperarm_R ─ forearm_R ─ hand_R
-   ├─ thigh_L ─ shin_L ─ foot_L
-   └─ thigh_R ─ shin_R ─ foot_R
+   │  ├─ clav_L ─ upper_arm_L ─ forearm_L ─ hand_L ─ index1_L ─ index2_L
+   │  └─ clav_R ─ upper_arm_R ─ forearm_R ─ hand_R          (the mug hangs here)
+   ├─ thigh_L ─ shin_L ─ foot_L ─ toe_L
+   └─ thigh_R ─ shin_R ─ foot_R ─ toe_R
 ```
 
-Bind pose is identity rotation on every joint, so each inverse bind matrix is a
-pure inverse translation and the rest pose is the modelled pose.
+The rest pose is an A-pose with both fists closed. `index1_L`/`index2_L` fold
+the left index finger into the fist in every clip except `command` and `talk`,
+where it points. Joint names avoid `.` deliberately: three.js rewrites dots in
+node names, which breaks anything that retargets by name.
 
-Joint names avoid `.` deliberately: three.js rewrites dots in node names (`clav.L`
-silently becomes `clavL`), which breaks anything that retargets by name.
+Skinning: the skin, shirt, slacks and shoes get Blender's bone-heat automatic
+weights (with a proximity fallback if heat fails on a part); straps, tie, belt
+and pocket are weighted to the torso chain only so they never follow an arm;
+glasses, eyes, brows, hair, collar and watch are pinned to their joint.
 
-Rotation sign convention, which is easy to get backwards: **positive X on an arm
-or leg joint swings it forward**, toward −Z, the way he faces. Positive Z raises
-an arm out to the side.
+## How it is built
 
-## Regenerating
+Everything is generated by `blender/build.py` through Blender's Python module
+(`bpy`), headless. There is no hand-modelled `.blend` to keep in sync — the
+script *is* the source.
+
+1. **Model** (`managerkit/body.py`): each wardrobe layer is its own shell.
+   Organic parts (head, arms, fists, torso, legs, shoes, hair, glasses frame)
+   are built from overlapping primitives, voxel-remeshed into one smooth
+   surface, relaxed, unwrapped and then decimated to budget. Flat things
+   (tie, suspenders, pocket, collar points) are strips shrink-wrapped onto the
+   shirt. All measurements live in `managerkit/measure.py`, which the rig
+   reads too.
+2. **Texture** (`managerkit/materials.py`, `bake.py`): procedural materials
+   with object-space masks (mouth, beard shadow, pinstripes, weave) are baked
+   in Cycles into a single base-colour + roughness atlas. The mug label is
+   drawn with Pillow.
+3. **Rig** (`managerkit/rig.py`): the armature, skinning, and the bone-parented
+   mug.
+4. **Animate** (`managerkit/anim.py`): pose tables in degrees about world axes
+   for the authored clips; BVH import, stride detection and direction-based
+   retargeting for the mocap ones. Each clip becomes an NLA track so the
+   exporter writes them all.
+5. **Export** (`managerkit/export.py`): glTF with sampled animation, then the
+   container is parsed back and summarised.
+6. **Preview** (`managerkit/render.py`): Cycles turnaround, closeup and a
+   contact sheet of every clip, written to `preview/`.
 
 ```sh
-python3 gen_manager_glb.py
+pip install "bpy==4.2.*" pillow numpy   # Blender 4.2 as a Python module
+cd blender
+python3 build.py                         # ~10 min on 4 CPU cores, most of it the previews
+python3 build.py --no-render             # ~30 s: just the .glb
+python3 build.py --stage model --render  # mesh only, turnaround into --tmp
 ```
 
-No dependencies — the mesh, the palette PNG, the skin weights, the animation
-curves and the GLB container are all written by hand from `struct`/`zlib`. The
-`.glb` is generated output and is committed, the same way the 2D sprite frames
-are. Edit the script, never the binary.
+The `.glb` and the previews are generated output and are committed, the same
+way the 2D sprite frames are. Edit the scripts, never the binary.
 
-## Previewing
+## Checking it in an engine
 
-`preview/` holds the renders above and the harness that produced them. The
-harness is optional dev tooling and needs npm, which nothing else in this repo
-does:
+`preview/render.js` loads the `.glb` with three.js `GLTFLoader` in headless
+Chromium, prints what the loader actually found (clips, joints, meshes,
+texture sizes) and writes `threejs_*.png` sheets. It is the only thing that
+proves the file works outside Blender.
 
 ```sh
 cd preview
 npm install three playwright
 node render.js
+# GLB=/path/to/other.glb OUT_DIR=/tmp node render.js   # optional overrides
 ```
-
-It serves the `.glb` to headless Chromium, loads it with three.js `GLTFLoader`,
-prints what the loader actually found in the file, and writes
-`turnaround.png`, `closeup.png` and `animations.png`.
-
-Run it after any change to the generator. The generator's own assertions only
-check its arithmetic — they cannot tell you the container parses, the skin
-binds, or that an arm swings the way you intended. Every real bug in this model
-so far was invisible in the numbers and obvious in the render.
 
 ## Known limitations
 
-- **Rigid skinning.** One joint per vertex, no blending. Parts overlap 3–5 cm at
-  every joint so rotation does not open a seam, but a hard bend still creases
-  visibly. Fine at isometric distance; a smooth-skinned replacement would be the
-  first upgrade if §9.1's first-person requirement proves demanding.
-- **The face is minimal** — brow, glasses, a mouth line. It reads at isometric
-  and conversation distance but will not carry a close-up.
+- **One finger.** Only the left index finger is articulated; the rest of the
+  hands are modelled as fists. Anything that needs an open hand (waving, a
+  handshake) needs finger bones on both hands.
+- **No facial rig.** The scowl is modelled in; there are no blend shapes for
+  talking or yelling. Adding them would be the first step towards §9.1's
+  first-person conversation distance.
+- **Mocap is two strides.** The walk and run are single loops; there is no
+  start/stop or turn. Longer CMU clips exist for all of these.
 - **No `work`/`talk`/`wait`/`carry`/`sit`.** Those are employee roles in §9.3;
-  this is the manager.
-- **No props.** The coffee pot `angry` mimes and the door `slam` hits are the
-  environment's, per §9.4. The mug from the concept sheet is deliberately
-  absent: `carry` is not a manager role, and a permanently held mug would be
-  wrong in eight of the nine clips.
-- **Employees do not exist yet.** §9.3 asks for 3–5 visually distinct variants;
-  this generator is written for one character and would need a variant system
-  to serve them.
+  this is the manager, and employees do not exist yet.

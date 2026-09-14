@@ -2,7 +2,7 @@
 // head closeup, and a contact sheet sampling every animation clip.
 //
 // This is optional dev tooling, not part of the game. It is the only thing that
-// actually proves the .glb is valid - gen_manager_glb.py can only check its own
+// actually proves the .glb is valid - blender/build.py can only check its own
 // arithmetic, it cannot tell you the container parses, the skin binds, or that
 // an arm swings forward rather than backward.
 //
@@ -18,8 +18,8 @@ const fs = require('fs');
 const path = require('path');
 
 const HERE = __dirname;
-const GLB = path.join(HERE, '..', 'bad_office_manager.glb');
-const MODULES = path.join(process.cwd(), 'node_modules');
+const GLB = process.env.GLB || path.join(HERE, '..', 'bad_office_manager.glb');
+const MODULES = process.env.NODE_MODULES || path.join(process.cwd(), 'node_modules');
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript',
   '.glb': 'model/gltf-binary', '.json': 'application/json',
@@ -43,7 +43,7 @@ const server = http.createServer((req, res) => {
 
 (async () => {
   if (!fs.existsSync(GLB)) {
-    console.error('missing %s - run `python3 gen_manager_glb.py` first', GLB);
+    console.error('missing %s - run `python3 blender/build.py` first', GLB);
     process.exit(1);
   }
   await new Promise(r => server.listen(8099, r));
@@ -67,7 +67,7 @@ const server = http.createServer((req, res) => {
   for (const mode of ['closeup', 'turnaround', 'anim']) {
     await page.evaluate(m => window.__draw(m), mode);
     await page.waitForTimeout(400);
-    const out = path.join(HERE, (mode === 'anim' ? 'animations' : mode) + '.png');
+    const out = path.join(process.env.OUT_DIR || HERE, 'threejs_' + (mode === 'anim' ? 'animations' : mode) + '.png');
     await (await page.$('#sheet')).screenshot({ path: out });
     console.log('wrote', path.basename(out));
   }

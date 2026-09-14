@@ -27,10 +27,10 @@ const scene = new THREE.Scene();
 // game would so the silhouette is judged under real conditions.
 scene.add(new THREE.HemisphereLight(0xaab4d6, 0x2a2320, 2.2));
 const key = new THREE.DirectionalLight(0xfff0dd, 2.6);
-key.position.set(3.5, 5.5, -5);   // in front of him; he faces -Z
+key.position.set(3.5, 5.5, 5);    // in front of him; he faces +Z
 scene.add(key);
 const rim = new THREE.DirectionalLight(0x8899cc, 1.4);
-rim.position.set(-4, 3, 5);      // behind, to pop the silhouette edge
+rim.position.set(-4, 3, -5);     // behind, to pop the silhouette edge
 scene.add(rim);
 
 const camera = new THREE.PerspectiveCamera(30, TILE_W / TILE_H, 0.1, 100);
@@ -68,8 +68,9 @@ model.traverse(o => {
 });
 
 function frame(yaw, pitch = 0.10, height = 0.95, dist = 5.2) {
-  // The model faces -Z, so yaw 0 must put the camera in front of him at -Z.
-  const a = yaw + Math.PI;
+  // The model faces +Z (glTF / three.js convention), so yaw 0 puts the
+  // camera in front of him at +Z.
+  const a = yaw;
   camera.position.set(
     Math.sin(a) * dist * Math.cos(pitch),
     height + Math.sin(pitch) * dist,
